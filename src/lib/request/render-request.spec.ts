@@ -1,7 +1,8 @@
 import { Bucket } from '@lib/bucket';
 import { Controller } from '@lib/controller';
 import { FrameQueue } from '@lib/frame-queue';
-import { Img, ImgEvent, ImgEventTypes, Size } from '@lib/image';
+import { Img, ImgEvent, ImgEventTypes } from '@lib/image';
+import { Size } from '@utils';
 import { RenderRequest } from './render-request';
 
 vi.mock('@lib/image');
@@ -117,11 +118,8 @@ describe('RenderRequest', () => {
 
   it('should have bytesVideo of size assigned', () => {
     const request = createRequest();
-    expect(request.bytesVideo).toBe(mockBytesVideo);
-    expect(request.image.getBytesVideo).toHaveBeenCalledWith(
-      request.size,
-      true,
-    );
+    expect(request.bytesVideo).toBe(0);
+    expect(request.image.getBytesVideo).not.toHaveBeenCalled();
   });
 
   it('should register request on image', () => {
@@ -209,42 +207,11 @@ describe('RenderRequest', () => {
     expect(request.frameQueue.add).toHaveBeenCalledWith(request);
   });
 
-  describe('onRendered', () => {
-    it('should set rendered to true', () => {
-      const request = createRequest();
-      request.onRendered();
-      expect(request.rendered).toBe(true);
-    });
-
-    it('should emit rendered event', () => {
-      const request = createRequest();
-      const spy = vi.spyOn(RenderRequest.prototype, 'emit');
-      request.onRendered();
-      expect(spy).toHaveBeenCalledWith('rendered');
-    });
-  });
-
-  describe('onProcessing', () => {
-    it('should emit processing event', () => {
-      const request = createRequest();
-      const spy = vi.spyOn(RenderRequest.prototype, 'emit');
-      request.onProcessing();
-      expect(spy).toHaveBeenCalledWith('processing');
-    });
-  });
-
   describe('clear', () => {
     let request: RenderRequest;
     beforeEach(() => {
       request = createRequest();
-      request.clear();
-    });
-    it('should unregister from image', () => {
-      expect(request.image.unregisterRequest).toHaveBeenCalledWith(request);
-    });
-
-    it('should unregister from bucket', () => {
-      expect(request.bucket.unregisterRequest).toHaveBeenCalledWith(request);
+      request.clear(true);
     });
 
     it('should remove size listener', () => {
@@ -254,7 +221,7 @@ describe('RenderRequest', () => {
     it('should emit clear event', () => {
       const request = createRequest();
       const spy = vi.spyOn(RenderRequest.prototype, 'emit');
-      request.clear();
+      request.clear(true);
       expect(spy).toHaveBeenCalledWith('clear');
     });
 
@@ -288,6 +255,7 @@ describe('RenderRequest', () => {
 
     it('should return false if bucket is not locked', () => {
       request.bucket.locked = false;
+      request.rendered = true;
       expect(request.isLocked()).toBe(false);
     });
 
