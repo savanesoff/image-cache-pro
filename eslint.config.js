@@ -5,17 +5,16 @@ import importPlugin from 'eslint-plugin-import';
 import prettierPlugin from 'eslint-plugin-prettier';
 import vitestGlobalsPlugin from 'eslint-plugin-vitest-globals';
 
-const { configs: jsConfigs } = js;
-const globalIgnorePatterns = ['node_modules/**', 'dist/**', '*.d.ts'];
+const globalIgnorePatterns = ['node_modules', 'dist'];
 
 export default [
   // ESLint base configurations
-  jsConfigs.recommended,
+  js.configs.recommended,
 
   // TypeScript plugin recommended configurations
   {
-    files: ['**/*.{ts,tsx}'],
     ignores: globalIgnorePatterns,
+    files: ['**/*.ts'],
     languageOptions: {
       parser: typescriptParser,
       parserOptions: {
@@ -45,8 +44,8 @@ export default [
 
   // Prettier configurations
   {
-    files: ['**/*.{js,ts}'],
     ignores: globalIgnorePatterns,
+    files: ['**/*.{js,ts}'],
     plugins: {
       prettier: prettierPlugin,
     },
@@ -58,8 +57,8 @@ export default [
 
   // Custom project-specific configurations
   {
-    files: ['**/*.{js,ts}'],
     ignores: globalIgnorePatterns,
+    files: ['**/*.{js,ts}'],
     languageOptions: {
       parserOptions: {
         ecmaVersion: 2021,
@@ -105,25 +104,21 @@ export default [
 
   // Vitest globals configurations
   {
-    files: [
-      '**/*.test.{js,ts}',
-      '**/*.spec.{js,ts}',
-      '**/__mocks__/**/*.{js,ts}',
-    ],
     ignores: globalIgnorePatterns,
-    languageOptions: {
-      globals: {
-        describe: 'readonly',
-        it: 'readonly',
-        test: 'readonly',
-        expect: 'readonly',
-        beforeAll: 'readonly',
-        beforeEach: 'readonly',
-        afterAll: 'readonly',
-        afterEach: 'readonly',
-        vi: 'readonly',
-      },
-    },
+    files: ['**/*.test.ts', '**/*.spec.ts', '**/__mocks__/**/*.ts'],
+    // languageOptions: {
+    //   globals: {
+    //     describe: 'readonly',
+    //     it: 'readonly',
+    //     test: 'readonly',
+    //     expect: 'readonly',
+    //     beforeAll: 'readonly',
+    //     beforeEach: 'readonly',
+    //     afterAll: 'readonly',
+    //     afterEach: 'readonly',
+    //     vi: 'readonly',
+    //   },
+    // },
     plugins: {
       vitestGlobals: vitestGlobalsPlugin,
     },
