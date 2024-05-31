@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,7 +14,7 @@ export default defineConfig({
     },
     sourcemap: true, // Enable source maps
     rollupOptions: {
-      external: ['react', 'react-dom', 'tslib'],
+      external: ['tslib'],
       output: [
         {
           format: 'es',

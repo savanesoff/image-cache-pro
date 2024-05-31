@@ -1,5 +1,5 @@
-import { Loader } from './loader';
 import { XHR } from '@mocks/xhr';
+import { Loader } from './loader';
 
 afterEach(() => {
   vi.clearAllMocks();

@@ -4,11 +4,11 @@
  * have multiple requests associated with it, a bucket can have multiple images
  */
 import { Bucket } from '@lib/bucket';
-import { Logger } from '@lib/logger';
-import { ImgProps, ImgEvent, Img } from '@lib/image';
-import { renderer } from './renderer';
 import { RendererProps, FrameQueue } from '@lib/frame-queue';
+import { ImgProps, ImgEvent, Img } from '@lib/image';
+import { Logger } from '@lib/logger';
 import { Size } from '@utils';
+import { renderer } from './renderer';
 
 export type RenderRequestProps = ImgProps & {
   size: Size;

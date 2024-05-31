@@ -18,11 +18,11 @@
 
 import { FrameQueueProps, FrameQueue } from '@lib/frame-queue';
 import { Img, ImgProps, ImgEvent } from '@lib/image';
+import { LogLevel, Logger } from '@lib/logger';
 import { Memory } from '@lib/memory';
 import { Network } from '@lib/network';
 import { RenderRequest, renderer } from '@lib/request';
 import { UnitsType } from '@utils';
-import { LogLevel, Logger } from '@lib/logger';
 // import { FrameQueue, FrameQueueProps } from "@/frame-queue";
 
 export type ControllerEventTypes =
