@@ -6,6 +6,7 @@
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,
+    "importHelpers": true,
     "plugins": [
       {
         "transform": "typescript-transform-paths",
