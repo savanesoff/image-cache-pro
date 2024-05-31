@@ -6,6 +6,7 @@ import prettierPlugin from 'eslint-plugin-prettier';
 import vitestGlobalsPlugin from 'eslint-plugin-vitest-globals';
 
 const { configs: jsConfigs } = js;
+const globalIgnorePatterns = ['node_modules/**', 'dist/**', '*.d.ts'];
 
 export default [
   // ESLint base configurations
@@ -14,6 +15,7 @@ export default [
   // TypeScript plugin recommended configurations
   {
     files: ['**/*.{ts,tsx}'],
+    ignores: globalIgnorePatterns,
     languageOptions: {
       parser: typescriptParser,
       parserOptions: {
@@ -44,6 +46,7 @@ export default [
   // Prettier configurations
   {
     files: ['**/*.{js,ts}'],
+    ignores: globalIgnorePatterns,
     plugins: {
       prettier: prettierPlugin,
     },
@@ -56,7 +59,7 @@ export default [
   // Custom project-specific configurations
   {
     files: ['**/*.{js,ts}'],
-    ignores: ['node_modules', 'dist', '*.d.ts'],
+    ignores: globalIgnorePatterns,
     languageOptions: {
       parserOptions: {
         ecmaVersion: 2021,
@@ -107,6 +110,7 @@ export default [
       '**/*.spec.{js,ts}',
       '**/__mocks__/**/*.{js,ts}',
     ],
+    ignores: globalIgnorePatterns,
     languageOptions: {
       globals: {
         describe: 'readonly',
