@@ -1,3 +1,7 @@
+/**
+ * Decodes the image data from a Blob to get the image type and dimensions.
+ * This is done to help support the image decoding process in the browsers that do not support the ImageBitmap API.
+ */
 import { getImageType, ImageType } from '../image-type';
 import { getBmpDimensions } from './bmp-decoder';
 import { getGifDimensions } from './gif-decoder';
