@@ -51,7 +51,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "lint": "eslint .",
+    "lint": "eslint . --ignore-pattern dist/",
     "format": "prettier --write .",
     "test": "vitest --run",
     "prepack": "pnpm run build",
