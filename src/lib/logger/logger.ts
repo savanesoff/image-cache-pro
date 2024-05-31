@@ -81,7 +81,6 @@ export class Logger extends EventEmitter {
   }
 
   #console(type: ConsoleType, styles = 'color: white;', data: DataType[]) {
-    // eslint-disable-next-line no-console
     console[type](
       [
         `%c${this.name}:`,

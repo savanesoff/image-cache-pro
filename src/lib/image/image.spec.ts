@@ -1,8 +1,8 @@
-import { IMAGE_COLOR_TYPE, Img } from './image';
-import { RenderRequest, RenderRequestEvent } from '@lib/request';
 import { Bucket } from '@lib/bucket';
 import { Controller } from '@lib/controller';
+import { RenderRequest, RenderRequestEvent } from '@lib/request';
 import { MockInstance } from 'vitest';
+import { IMAGE_COLOR_TYPE, Img } from './image';
 
 vi.useFakeTimers();
 const createBucket = (): Bucket => {

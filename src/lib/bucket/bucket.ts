@@ -13,9 +13,9 @@
  */
 import { Controller } from '@lib/controller';
 import { Img } from '@lib/image';
+import { Logger } from '@lib/logger';
 import { RenderRequest, RenderRequestEvent } from '@lib/request';
 import { now, UNITS, UnitsType } from '@utils';
-import { Logger } from '@lib/logger';
 
 export type BucketEventTypes =
   | 'progress'

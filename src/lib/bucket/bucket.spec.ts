@@ -1,13 +1,13 @@
 import { Controller } from '@lib/controller';
+import { Img } from '@lib/image';
 import {
   RenderRequest,
   RenderRequestEvent,
   RenderRequestEventTypes,
 } from '@lib/request';
-import { Bucket } from './bucket';
-import { Img } from '@lib/image';
 import { Size } from '@utils';
 import { UNITS } from '@utils';
+import { Bucket } from './bucket';
 
 vi.mock('@lib/image');
 vi.mock('@lib/request');
