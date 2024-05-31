@@ -22,14 +22,7 @@
       "@lib/*": ["src/lib/*"],
       "@utils": ["src/utils"],
       "@mocks*": ["src/__mocks__/*"]
-    },
-    "plugins": [
-      // {
-      //   "transform": "typescript-transform-paths",
-      //   "afterDeclarations": true,
-      //   "exclude": ["**/node_modules/**"]
-      // }
-    ]
+    }
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"], // Ensure these files are included
   "exclude": ["node_modules", "dist"],
