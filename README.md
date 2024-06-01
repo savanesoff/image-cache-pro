@@ -11,6 +11,8 @@
 
 `JavaScript Browser` application library for ultimate Web app image (load, ple-load, caching) control, as well as detailed `RAM` and `GPU` memory usage control and monitoring.
 
+[![Validator](https://raw.githubusercontent.com/savanesoff/image-cache-pro/main/public/image-cache-demo.gif)](https://savanesoff.github.io/image-cache-pro)
+
 ## Table of Contents
 
 ## Use case
