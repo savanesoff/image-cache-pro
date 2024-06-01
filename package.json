@@ -1,7 +1,7 @@
 {
   "name": "image-cache-pro",
   "private": false,
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "description": "JavaScript library for caching images in memory. Provides ways to manage memory usage (RAM & GPU).",
   "main": "./dist/cjs/index.js",

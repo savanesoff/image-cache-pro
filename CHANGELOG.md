@@ -1,5 +1,12 @@
 # image-cache-pro
 
+## 0.4.2
+
+### Patch Changes
+
+- 9666c61: Readme updates include npm badge
+- 97d28e7: Build size reduction
+
 ## 0.4.1
 
 ### Patch Changes
