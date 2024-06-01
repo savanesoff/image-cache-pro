@@ -29,7 +29,7 @@
     "type": "git",
     "url": "git+https://github.com/savanesoff/image-cache"
   },
-  "packageManager": "^pnpm@8.6.6",
+  "packageManager": "pnpm@9.1.4",
   "keywords": [
     "image cache",
     "image rendering",
