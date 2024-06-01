@@ -1,5 +1,11 @@
 # image-cache-pro
 
+## 0.3.0
+
+### Minor Changes
+
+- dc757fe: limmited test run and workflow fixes
+
 ## 0.2.0
 
 ### Minor Changes
