@@ -11,7 +11,7 @@
 
 JavaScript Browser application library for ultimate Web app image (load, pre-load, caching, grouping) control, as well as detailed RAM and GPU memory usage control and monitoring.
 
-[![Validator](https://raw.githubusercontent.com/savanesoff/image-cache-pro/main/public/image-cache-demo.gif)](https://savanesoff.github.io/image-cache-pro)
+[![Validator](https://raw.githubusercontent.com/savanesoff/image-cache-pro/main/demo-assets/image-cache-demo.gif)](https://savanesoff.github.io/image-cache-pro)
 
 [![NPM](https://nodei.co/npm/image-cahce-pro.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/image-cache-pro/)
 
