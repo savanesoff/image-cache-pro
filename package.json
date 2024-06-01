@@ -59,7 +59,7 @@
     "clean:package": "rm -rf ./dist",
     "build:types": "tspc --project tsconfig.package.json",
     "build:package": "pnpm run clean:package && vite build && pnpm run build:types",
-    "release": "pnpm run build && pnpm run test && pnpm changeset publish"
+    "release": "pnpm run build:package && pnpm run test && pnpm changeset publish"
   },
   "dependencies": {
     "events": "^3.3.0",
