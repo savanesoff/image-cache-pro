@@ -2,7 +2,7 @@ name: Unit Tests
 run-name: ${{ github.actor }} is running unit tests... 🚀
 on:
   pull_request:
-    types: [opened, synchronize, reopened, updated]
+    types: [opened, synchronize, reopened, edited]
 
 jobs:
   cache-and-install:
