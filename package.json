@@ -31,14 +31,15 @@
   },
   "packageManager": "^pnpm@8.6.6",
   "keywords": [
-    "cache",
-    "image",
-    "asset-management",
+    "image cache",
+    "image rendering",
+    "asset management",
     "ram",
     "gpu",
     "memory",
-    "video-memory",
-    "memory-management",
+    "video memory",
+    "GPU memory",
+    "memory management",
     "typescript"
   ],
   "release": {
@@ -57,13 +58,15 @@
     "prepack": "pnpm run build",
     "clean:package": "rm -rf ./dist",
     "build:types": "tspc --project tsconfig.package.json",
-    "build:package": "pnpm run clean:package && vite build && pnpm run build:types"
+    "build:package": "pnpm run clean:package && vite build && pnpm run build:types",
+    "release": "pnpm run build && pnpm run test && pnpm changeset publish"
   },
   "dependencies": {
     "events": "^3.3.0",
     "tslib": "^2.6.2"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.5",
     "@eslint/js": "^9.3.0",
     "@rollup/plugin-alias": "^5.1.0",
     "@rollup/plugin-commonjs": "^25.0.7",
