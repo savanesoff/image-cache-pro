@@ -1,5 +1,11 @@
 # image-cache-pro
 
+## 0.4.1
+
+### Patch Changes
+
+- aa35c10: added build scriopt
+
 ## 0.4.0
 
 ### Minor Changes
