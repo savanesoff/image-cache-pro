@@ -1,5 +1,11 @@
 # image-cache-pro
 
+## 0.5.1
+
+### Patch Changes
+
+- 3dc87f3: type fix
+
 ## 0.5.0
 
 ### Minor Changes
