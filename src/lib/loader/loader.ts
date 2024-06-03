@@ -209,6 +209,7 @@ export class Loader extends Logger {
     this.headers = headers;
     this.retry = retry ?? this.retry;
     this.xhr = new XMLHttpRequest();
+    this.xhr.responseType = 'arraybuffer';
   }
 
   /**
@@ -230,7 +231,6 @@ export class Loader extends Logger {
     this.xhr.onerror = this.#onLoadError;
     this.xhr.onabort = this.#onLoadAborted;
     this.xhr.ontimeout = this.#onLoadTimeout;
-    this.xhr.responseType = 'arraybuffer';
     this.xhr.open('GET', this.url, true);
     this.#setHeaders();
     this.xhr.send();
@@ -363,7 +363,15 @@ export class Loader extends Logger {
     this.loaded = false;
     this.errored = true;
     Loader.errored++;
-    this.log.error(['Error', this.url]);
+    this.log.error([
+      'Error',
+      this.url,
+      'status',
+      this.xhr.status,
+      'text',
+      this.xhr.statusText,
+    ]);
+
     this.emit('error', {
       statusText: this.xhr.statusText,
       status: this.xhr.status,
