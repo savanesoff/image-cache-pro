@@ -1,5 +1,11 @@
 # image-cache-pro
 
+## 0.5.0
+
+### Minor Changes
+
+- 1c1080a: xhr fix
+
 ## 0.4.2
 
 ### Patch Changes
