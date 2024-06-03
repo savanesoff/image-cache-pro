@@ -324,10 +324,24 @@ export class Controller extends Logger {
     return false;
   }
 
-  getRenderRequestCount() {
-    return Array.from(this.cache.values())
-      .map(item => item.renderRequests.size)
-      .reduce((total, count) => total + count, 0);
+  /**
+   * Render requests stats for all images in the cache
+   * @returns  total and rendered requests stats
+   */
+  getRequestsStats() {
+    const data = {
+      total: 0,
+      rendered: 0,
+    };
+
+    Array.from(this.cache.values()).forEach(item => {
+      data.total += item.renderRequests.size;
+      data.rendered += Array.from(item.renderRequests.values()).filter(
+        request => request.rendered,
+      ).length;
+    });
+
+    return data;
   }
 
   //------------------------------    EVENTS    ------------------------------
