@@ -30,10 +30,6 @@ You can find a demo of the library [here](https://savanesoff.github.io/image-cac
 
 ## Table of Contents
 
-## Table of Contents
-
-## Table of Contents
-
 - [Origin](#origin)
 - [Use Case](#use-case)
   - [Memory Management](#memory-management)
@@ -41,7 +37,6 @@ You can find a demo of the library [here](https://savanesoff.github.io/image-cac
 - [Features](#features)
 - [RAM Usage Monitoring](#ram-usage-monitoring)
 - [GPU Memory Usage Monitoring](#gpu-memory-usage-monitoring)
-  - [Example](#example)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Controller](#controller)
@@ -104,9 +99,7 @@ Both of these data are stored in the RAM, and this library provides a way to mon
 - `gpuFullMode: true` - will monitor the entire uncompressed image data footprint in the GPU memory.
 - `gpuFullMode: false` - will monitor only the rendered bitmap size data footprint in the GPU memory.
 
-This distinction is important to understand when it comes to GPU memory usage and having an understanding of the actual memory usage of the images loaded by the application.
-
-#### Example
+This distinction is important to understand when it comes to GPU memory usage and having an understanding of the actual memory usage of the images loaded by the application. Example:
 
 While rendering a 4k image (RGBA) as 100x100 pixels on the screen, the GPU memory usage will be different depending on the browser, and with the `gpuFullMode` configuration option, we can distinguish a GPU memory footprint:
 
