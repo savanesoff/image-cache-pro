@@ -1,5 +1,11 @@
 # image-cache-pro
 
+## 0.5.2
+
+### Patch Changes
+
+- b4a6596: Readme update
+
 ## 0.5.1
 
 ### Patch Changes
