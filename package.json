@@ -65,6 +65,7 @@
     "format": "prettier --write .",
     "test": "vitest --run src/lib/network/",
     "prepack": "pnpm run build",
+    "prepare": "pnpm run build",
     "clean:package": "rm -rf ./dist",
     "build:types": "tspc --project tsconfig.package.json",
     "build:package": "pnpm run clean:package && vite build && pnpm run build:types",
