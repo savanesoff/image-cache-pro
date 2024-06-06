@@ -1,7 +1,7 @@
 {
   "name": "image-cache-pro",
   "private": false,
-  "version": "0.5.2",
+  "version": "0.5.3",
   "type": "module",
   "description": "Advanced JavaScript library for image loading, pre-loading, caching, and detailed RAM & GPU memory management. (Beta)",
   "main": "./dist/cjs/index.js",
