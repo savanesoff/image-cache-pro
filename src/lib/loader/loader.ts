@@ -81,6 +81,8 @@ export type LoaderProps = LoggerProps & {
   headers?: Headers | null
   /** The number of times to retry loading the resource */
   retry?: number
+  /** Whether to send credentials with the request */
+  withCredentials?: boolean
 }
 
 /**
@@ -200,6 +202,7 @@ export class Loader extends Logger {
     retry,
     logLevel = 'error',
     name = 'Loader',
+    withCredentials = false,
   }: LoaderProps) {
     super({
       name,
@@ -210,6 +213,7 @@ export class Loader extends Logger {
     this.retry = retry ?? this.retry
     this.xhr = new XMLHttpRequest()
     this.xhr.responseType = 'arraybuffer'
+    this.xhr.withCredentials = withCredentials
   }
 
   /**
