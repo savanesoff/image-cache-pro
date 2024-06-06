@@ -3,7 +3,7 @@
   "private": false,
   "version": "0.5.2",
   "type": "module",
-  "description": "JavaScript library for caching images in memory. Provides ways to manage image loading, caching and memory usage (RAM & GPU).",
+  "description": "Advanced JavaScript library for image loading, pre-loading, caching, and detailed RAM & GPU memory management.",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/types/index.d.ts",
