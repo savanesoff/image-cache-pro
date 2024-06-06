@@ -51,6 +51,10 @@
   "publishConfig": {
     "access": "public"
   },
+  "engines": {
+    "node": ">=18.19.1",
+    "pnpm": ">=9.1.4"
+  },
   "scripts": {
     "dev": "vite",
     "lint": "eslint . --ignore-pattern dist/",
