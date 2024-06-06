@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/savanesoff/image-cache"
+    "url": "git+https://github.com/savanesoff/image-cache-pro"
   },
   "packageManager": "pnpm@9.1.4",
   "keywords": [
