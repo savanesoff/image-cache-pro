@@ -55,6 +55,9 @@
     "node": ">=18.19.1",
     "pnpm": ">=9.1.4"
   },
+  "bugs": {
+    "url": "https://github.com/savanesoff/image-cache-pro/issues"
+  },
   "scripts": {
     "dev": "vite",
     "lint": "eslint . --ignore-pattern dist/",
