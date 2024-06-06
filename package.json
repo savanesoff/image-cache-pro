@@ -3,7 +3,7 @@
   "private": false,
   "version": "0.5.2",
   "type": "module",
-  "description": "JavaScript library for caching images in memory. Provides ways to manage image loading, caching and memory usage (RAM & GPU).",
+  "description": "Advanced JavaScript library for image loading, pre-loading, caching, and detailed RAM & GPU memory management. (Beta)",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/types/index.d.ts",
@@ -28,18 +28,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/savanesoff/image-cache"
+    "url": "git+https://github.com/savanesoff/image-cache-pro"
   },
   "packageManager": "pnpm@9.1.4",
   "keywords": [
     "image cache",
-    "image rendering",
-    "asset management",
-    "ram",
-    "gpu",
-    "memory",
-    "video memory",
-    "GPU memory",
+    "image loading",
+    "image pre-loading",
+    "image pre-rendering",
+    "RAM management",
+    "GPU management",
+    "web performance",
+    "image optimization",
     "memory management",
     "typescript"
   ],
@@ -51,12 +51,21 @@
   "publishConfig": {
     "access": "public"
   },
+  "engines": {
+    "node": ">=18.19.1",
+    "pnpm": ">=9.1.4"
+  },
+  "bugs": {
+    "url": "https://github.com/savanesoff/image-cache-pro/issues"
+  },
+  "homepage": "https://github.com/savanesoff/image-cache-pro#readme",
   "scripts": {
     "dev": "vite",
     "lint": "eslint . --ignore-pattern dist/",
     "format": "prettier --write .",
     "test": "vitest --run src/lib/network/",
     "prepack": "pnpm run build",
+    "prepare": "pnpm run build",
     "clean:package": "rm -rf ./dist",
     "build:types": "tspc --project tsconfig.package.json",
     "build:package": "pnpm run clean:package && vite build && pnpm run build:types",

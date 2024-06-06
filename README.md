@@ -3,12 +3,16 @@
 # image-cache-pro
 
 [![Github](https://badgen.net/badge/Protosus/image-cache-pro?color=purple&icon=github)](https://github.com/savanesoff/image-cache-pro)
-[![Demo](https://img.shields.io/badge/Demo-View-brightgreen)](https://savanesoff.github.io/image-cache-preact/)
-[![Li](https://badgen.net/badge/Sponsored%20by/Oregan%20Networks?color=blue)](https://oregan.net/)
+[![Beta](https://img.shields.io/badge/Status-Beta-cyan)](https://github.com/savanesoff/image-cache-pro)
 [![Build Status](https://github.com/savanesoff/image-cache-pro/actions/workflows/publish.yaml/badge.svg?branch=main&event=push)](https://github.com/savanesoff/image-cache-pro/actions/workflows/publish.yaml)
+[![Demo](https://img.shields.io/badge/Demo-View-blue)](https://savanesoff.github.io/image-cache-preact/)
 [![NPM](https://img.shields.io/npm/v/image-cache-pro.svg)](https://www.npmjs.com/package/image-cache-pro)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Li](https://badgen.net/badge/savanesoff/LI?color=blue)](https://www.linkedin.com/in/samvel-avanesov)
+
+[![Li](https://badgen.net/badge/Sponsored%20by/Oregan%20Networks?color=blue)](https://oregan.net/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Li](https://badgen.net/badge/Profile/LI?color=blue)](https://www.linkedin.com/in/samvel-avanesov)
+
+**Status: Beta** - This library is currently in beta. Please report any issues or feedback to help us improve.
 
 JavaScript Browser application library for ultimate Web app image (load, pre-load, caching, grouping) control, as well as detailed RAM and GPU memory usage control and monitoring.
 
