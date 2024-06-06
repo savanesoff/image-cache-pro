@@ -58,6 +58,7 @@
   "bugs": {
     "url": "https://github.com/savanesoff/image-cache-pro/issues"
   },
+  "homepage": "https://github.com/savanesoff/image-cache-pro#readme",
   "scripts": {
     "dev": "vite",
     "lint": "eslint . --ignore-pattern dist/",
