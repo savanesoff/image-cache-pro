@@ -1,5 +1,11 @@
 # image-cache-pro
 
+## 0.5.3
+
+### Patch Changes
+
+- d2f86a2: Package and readme update with beta status and improved definitions.
+
 ## 0.5.2
 
 ### Patch Changes
