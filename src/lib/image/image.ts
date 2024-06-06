@@ -24,9 +24,9 @@ import {
   LoaderEventTypes,
   LoaderEvent,
   LoaderProps,
-} from '@lib/loader';
-import { RenderRequest, RenderRequestEvent } from '@lib/request';
-import { ImageType, ImageData, Size, getImageData } from '@utils';
+} from '@lib/loader'
+import { RenderRequest, RenderRequestEvent } from '@lib/request'
+import { ImageType, ImageData, Size, getImageData } from '@utils'
 
 /** Event types for the Img class */
 export type ImgEventTypes =
@@ -36,13 +36,13 @@ export type ImgEventTypes =
   | 'render-request-rendered'
   | 'render-request-added'
   | 'render-request-removed'
-  | 'blob-error';
+  | 'blob-error'
 
 type Events<T extends ImgEventTypes> = {
   /** The type of the event */
-  type: T;
+  type: T
   /** The image instance that triggered the event */
-  target: Img;
+  target: Img
 } & (T extends 'size' ? { size: Size } : unknown) &
   (T extends
     | 'render-request-rendered'
@@ -50,18 +50,18 @@ type Events<T extends ImgEventTypes> = {
     | 'render-request-added'
     ? { request: RenderRequest; bytes: number }
     : unknown) &
-  (T extends 'blob-error' ? { error: string } : unknown);
+  (T extends 'blob-error' ? { error: string } : unknown)
 
 /** Event data for the Img class */
 export type ImgEvent<T extends ImgEventTypes> = T extends LoaderEventTypes
   ? LoaderEvent<T>
-  : Events<T>;
+  : Events<T>
 
 /** Event handler for the Img class */
 export type ImgEventHandler<T extends ImgEventTypes> =
   T extends LoaderEventTypes
     ? LoaderEventHandler<T>
-    : (event: ImgEvent<T>) => void;
+    : (event: ImgEvent<T>) => void
 
 export const IMAGE_COLOR_TYPE = {
   Grayscale: 1, // JPEG, PNG, GIF
@@ -69,15 +69,15 @@ export const IMAGE_COLOR_TYPE = {
   RGBA: 4, // PNG, GIF
   CMYK: 4, // TIFF
   // add more image types as needed
-} as const;
+} as const
 
-export type ImageColorType = keyof typeof IMAGE_COLOR_TYPE;
+export type ImageColorType = keyof typeof IMAGE_COLOR_TYPE
 
 export type ImgProps = LoaderProps & {
-  type?: ImageColorType;
-  gpuDataFull?: boolean;
-  mimeType?: ImageType;
-};
+  type?: ImageColorType
+  gpuDataFull?: boolean
+  mimeType?: ImageType
+}
 
 /**
  * Represents an image loader that loads image data via XMLHttpRequest.
@@ -88,25 +88,25 @@ export type ImgProps = LoaderProps & {
  */
 export class Img extends Loader {
   /** Image element that helps us hold on to blob url data in ram */
-  readonly element: HTMLImageElement;
+  readonly element: HTMLImageElement
   /** Tracks render data for each image size */
-  readonly renderRequests = new Set<RenderRequest>();
+  readonly renderRequests = new Set<RenderRequest>()
   /** Indicates whether the image size has been determined */
-  gotSize = false;
+  gotSize = false
   /** Indicates whether the image data has been decoded. Transferred into RAM */
-  decoded = false;
+  decoded = false
   /** Size of the image in bytes, uncompressed */
-  bytesUncompressed = 0;
+  bytesUncompressed = 0
   /** Image memory compression type */
-  readonly type: ImageColorType;
-  mimeType: ImageType = 'unknown';
+  readonly type: ImageColorType
+  mimeType: ImageType = 'unknown'
   /**
    * GPU memory allocation type.
    * True - full image size pixel data moves to GPU.
    * False - only the requested image size data moves to GPU.
    */
-  readonly gpuDataFull: boolean;
-  size: Size = { width: 0, height: 0 };
+  readonly gpuDataFull: boolean
+  size: Size = { width: 0, height: 0 }
 
   constructor({
     headers = {
@@ -124,13 +124,13 @@ export class Img extends Loader {
       name,
       logLevel,
       ...props,
-    });
-    this.gpuDataFull = gpuDataFull;
-    this.mimeType = mimeType;
+    })
+    this.gpuDataFull = gpuDataFull
+    this.mimeType = mimeType
     // TODO auto detect image type from headers or url
-    this.type = type;
-    this.element = new Image(); // need to get actual size of image
-    this.on('loadend', this.#onLoadEnd); // called by a loader process
+    this.type = type
+    this.element = new Image() // need to get actual size of image
+    this.on('loadend', this.#onLoadEnd) // called by a loader process
   }
 
   /**
@@ -140,39 +140,39 @@ export class Img extends Loader {
    * Unregister all render requests for the image
    */
   clear() {
-    this.element.onload = null;
-    this.element.onerror = null;
-    this.element.src = '';
-    this.gotSize = false;
-    this.bytesUncompressed = 0;
+    this.element.onload = null
+    this.element.onerror = null
+    this.element.src = ''
+    this.gotSize = false
+    this.bytesUncompressed = 0
     // release the blob data from memory
-    URL.revokeObjectURL(this.element.src);
+    URL.revokeObjectURL(this.element.src)
     // clear all render requests
     for (const request of this.renderRequests) {
-      request.clear();
+      request.clear()
     }
-    this.emit('clear');
-    this.removeAllListeners();
+    this.emit('clear')
+    this.removeAllListeners()
   }
 
   /**
    * Registers a render request for the image.
    */
   registerRequest(request: RenderRequest) {
-    this.renderRequests.add(request);
-    request.on('rendered', this.#onRendered);
-    request.on('clear', this.#onRequestClear);
-    this.emit('render-request-added', { request, bytes: request.bytesVideo });
+    this.renderRequests.add(request)
+    request.on('rendered', this.#onRendered)
+    request.on('clear', this.#onRequestClear)
+    this.emit('render-request-added', { request, bytes: request.bytesVideo })
   }
 
   /**
    * Unregister a render request for the image.
    */
   #onRequestClear = (event: RenderRequestEvent<'clear'>) => {
-    event.target.off('rendered', this.#onRendered);
-    event.target.off('clear', this.#onRequestClear);
-    this.renderRequests.delete(event.target);
-    this.decoded = this.renderRequests.size === 0 ? false : this.decoded;
+    event.target.off('rendered', this.#onRendered)
+    event.target.off('clear', this.#onRequestClear)
+    this.renderRequests.delete(event.target)
+    this.decoded = this.renderRequests.size === 0 ? false : this.decoded
 
     this.emit('render-request-removed', {
       request: event.target,
@@ -180,8 +180,8 @@ export class Img extends Loader {
         this.gpuDataFull && this.renderRequests.size > 0
           ? 0
           : event.target.bytesVideo,
-    });
-  };
+    })
+  }
 
   /**
    * Returns true if the image is locked by any render request
@@ -189,25 +189,25 @@ export class Img extends Loader {
   isLocked() {
     for (const request of this.renderRequests.values()) {
       if (request.isLocked()) {
-        return true;
+        return true
       }
     }
-    return false;
+    return false
   }
 
   isSizeLocked(callerRequest: RenderRequest) {
     for (const request of this.renderRequests.values()) {
-      if (request === callerRequest) continue;
+      if (request === callerRequest) continue
       if (
         (this.gpuDataFull ||
           (request.size.width === callerRequest.size.width &&
             request.size.height === callerRequest.size.height)) &&
         request.isLocked()
       ) {
-        return true;
+        return true
       }
     }
-    return false;
+    return false
   }
 
   /*
@@ -237,16 +237,16 @@ export class Img extends Loader {
    */
   getBytesRam() {
     // add together compressed size and uncompressed size
-    return this.bytes + (this.decoded ? this.bytesUncompressed : 0);
+    return this.bytes + (this.decoded ? this.bytesUncompressed : 0)
   }
 
   /**
    * Returns the size of the image in bytes as a 4 channel RGBA image
    */
   getBytesVideo(size: Size) {
-    const bytesPerPixel = IMAGE_COLOR_TYPE[this.type]; // default to 4 if the image type is not in the map
-    const gpuSize = this.gpuDataFull && this.size ? this.size : size;
-    const bytes = gpuSize.width * gpuSize.height * bytesPerPixel;
+    const bytesPerPixel = IMAGE_COLOR_TYPE[this.type] // default to 4 if the image type is not in the map
+    const gpuSize = this.gpuDataFull && this.size ? this.size : size
+    const bytes = gpuSize.width * gpuSize.height * bytesPerPixel
     this.log.verbose([
       'getBytesVideo',
       'Bytes per pixel:',
@@ -265,8 +265,8 @@ export class Img extends Loader {
       this.decoded,
       'this.size:',
       this.size,
-    ]);
-    return gpuSize.width * gpuSize.height * bytesPerPixel;
+    ])
+    return gpuSize.width * gpuSize.height * bytesPerPixel
   }
 
   /**
@@ -277,7 +277,7 @@ export class Img extends Loader {
    */
   isDecoded(size: Size) {
     if (this.gpuDataFull) {
-      return this.decoded;
+      return this.decoded
     }
     for (const req of this.renderRequests) {
       if (
@@ -286,10 +286,10 @@ export class Img extends Loader {
         req.size.width === size.width &&
         req.size.height === size.height
       ) {
-        return true;
+        return true
       }
     }
-    return false;
+    return false
   }
   //--------------------------   PRIVATE METHODS   -----------------------------
 
@@ -300,7 +300,7 @@ export class Img extends Loader {
    */
   #onLoadEnd() {
     if (!this.blob) {
-      throw new Error('No blob data found!');
+      throw new Error('No blob data found!')
     }
 
     this.log.verbose([
@@ -309,7 +309,7 @@ export class Img extends Loader {
       this.blob,
       'gpuDataFull:',
       this.gpuDataFull,
-    ]);
+    ])
 
     // async call to get the image info like size and type
     getImageData(this.xhr.response as ArrayBuffer)
@@ -320,18 +320,18 @@ export class Img extends Loader {
           data,
           'gpuDataFull:',
           this.gpuDataFull,
-        ]);
-        this.element.onload = () => this.#onBlobAssigned(data);
-        this.element.onerror = this.#onBlobError;
+        ])
+        this.element.onload = () => this.#onBlobAssigned(data)
+        this.element.onerror = this.#onBlobError
         // this does not work in Cobalt
         if (this.gpuDataFull) {
-          setTimeout(() => this.#onBlobAssigned(data), 0);
+          setTimeout(() => this.#onBlobAssigned(data), 0)
         } else if (this.blob) {
-          this.element.onload = () => this.#onBlobAssigned(data);
-          this.element.onerror = this.#onBlobError;
-          this.element.src = URL.createObjectURL(this.blob);
+          this.element.onload = () => this.#onBlobAssigned(data)
+          this.element.onerror = this.#onBlobError
+          this.element.src = URL.createObjectURL(this.blob)
         } else {
-          throw new Error('No blob data found!');
+          throw new Error('No blob data found!')
         }
       })
       .catch(error => {
@@ -341,31 +341,31 @@ export class Img extends Loader {
           error.message,
           'gpuDataFull:',
           this.gpuDataFull,
-        ]);
-      });
+        ])
+      })
   }
 
   /**
    * Called when the image data is loaded
    */
   #onBlobAssigned = (data: ImageData) => {
-    this.element.onload = null;
-    this.element.onerror = null;
-    this.size = data.size;
-    this.element.width = this.element.width || data.size.width;
-    this.element.height = this.element.height || data.size.height;
+    this.element.onload = null
+    this.element.onerror = null
+    this.size = data.size
+    this.element.width = this.element.width || data.size.width
+    this.element.height = this.element.height || data.size.height
     if (this.mimeType !== data.type) {
       this.log.warn([
         'Presumed mimeType mismatch:',
         `presumed: ${this.mimeType}`,
         `actual: ${data.type}`,
-      ]);
+      ])
     }
-    this.mimeType = data.type;
+    this.mimeType = data.type
     // not really needed to have size separate from image props, but image can be cleared to free memory
-    this.gotSize = true;
+    this.gotSize = true
     // element satisfies the Size interface
-    this.bytesUncompressed = this.getBytesVideo(data.size);
+    this.bytesUncompressed = this.getBytesVideo(data.size)
     this.log.verbose([
       'onBlobAssigned',
       'data:',
@@ -374,20 +374,20 @@ export class Img extends Loader {
       this.bytes,
       'Bytes Uncompressed:',
       this.bytesUncompressed,
-    ]);
+    ])
     this.emit('size', {
       size: data.size,
-    });
-  };
+    })
+  }
 
   /**
    * Called when the image data fails to load
    */
   #onBlobError = () => {
-    this.element.onload = null;
-    this.element.onerror = null;
-    this.emit('blob-error');
-  };
+    this.element.onload = null
+    this.element.onerror = null
+    this.emit('blob-error')
+  }
 
   /**
    * Called when the image is rendered
@@ -395,15 +395,15 @@ export class Img extends Loader {
   #onRendered = (event: RenderRequestEvent<'rendered'>) => {
     // for each render request, we need to calculate the size of the image in video memory
     // however, we only need to decode the image once in the gpuDataFull mode
-    const bytes = this.decoded ? 0 : event.target.bytesVideo;
+    const bytes = this.decoded ? 0 : event.target.bytesVideo
 
     this.emit('render-request-rendered', {
       request: event.target,
       bytes,
-    });
+    })
 
-    this.decoded = true;
-  };
+    this.decoded = true
+  }
 
   //--------------------------   EVENT HANDLERS   --------------------==--------
 
@@ -418,7 +418,7 @@ export class Img extends Loader {
     return super.on(
       type as LoaderEventTypes,
       handler as LoaderEventHandler<LoaderEventTypes>,
-    );
+    )
   }
 
   /**
@@ -431,7 +431,7 @@ export class Img extends Loader {
     return super.off(
       type as LoaderEventTypes,
       handler as LoaderEventHandler<LoaderEventTypes>,
-    );
+    )
   }
 
   /**
@@ -449,6 +449,6 @@ export class Img extends Loader {
     return super.emit(
       type as LoaderEventTypes,
       data as Omit<LoaderEvent<LoaderEventTypes>, 'target' | 'type'>,
-    );
+    )
   }
 }

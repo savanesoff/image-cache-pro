@@ -1,1 +1,1 @@
-export * from './frame-queue.js';
+export * from './frame-queue.js'

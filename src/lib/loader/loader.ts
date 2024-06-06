@@ -23,15 +23,15 @@
  * });
  * loader.load("http://example.com/resource");
  */
-import { Logger, LoggerProps } from '@lib/logger';
+import { Logger, LoggerProps } from '@lib/logger'
 
-export type MIMEType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+export type MIMEType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 
 export type Headers = {
-  'Content-Type': MIMEType;
-  'Cache-Control'?: string;
-  Expires?: string;
-};
+  'Content-Type': MIMEType
+  'Cache-Control'?: string
+  Expires?: string
+}
 /** Loader properties */
 export type LoaderEventTypes =
   | 'loadstart'
@@ -40,48 +40,48 @@ export type LoaderEventTypes =
   | 'abort'
   | 'timeout'
   | 'error'
-  | 'retry';
+  | 'retry'
 
 /** Loader properties */
 export type ProgressEventLoader = {
-  progress: number;
-};
+  progress: number
+}
 
 export type ErrorEventLoader = {
   /** The error message */
-  statusText: string;
+  statusText: string
   /** The error status code */
-  status: number;
-};
+  status: number
+}
 
 export type RetryEventLoader = {
   /** The number of retries */
-  retries: number;
-};
+  retries: number
+}
 
 export type LoaderEvent<T extends LoaderEventTypes> = {
   /** The type of the event */
-  type: T;
+  type: T
   /** The loader instance that triggered the event */
-  target: Loader;
+  target: Loader
 } & (T extends 'progress' ? ProgressEventLoader : unknown) &
   (T extends 'error' ? ErrorEventLoader : unknown) &
   (T extends 'retry' ? RetryEventLoader : unknown) &
-  (T extends 'loadend' ? { bytes: number } : unknown);
+  (T extends 'loadend' ? { bytes: number } : unknown)
 
 /** Loader event handler */
 export type LoaderEventHandler<T extends LoaderEventTypes> = (
   event: LoaderEvent<T>,
-) => void;
+) => void
 
 export type LoaderProps = LoggerProps & {
   /** The URL of the resource to load */
-  url: string;
+  url: string
   /** The headers to be sent with the request */
-  headers?: Headers | null;
+  headers?: Headers | null
   /** The number of times to retry loading the resource */
-  retry?: number;
-};
+  retry?: number
+}
 
 /**
  * The `Loader` class provides a way to load resources over the network.
@@ -108,85 +108,85 @@ export type LoaderProps = LoggerProps & {
  * @extends Logger
  */
 export class Loader extends Logger {
-  static loaded = 0;
-  static errored = 0;
-  static aborted = 0;
-  static timeout = 0;
+  static loaded = 0
+  static errored = 0
+  static aborted = 0
+  static timeout = 0
 
   /**
    * The URL of the resource to load.
    */
-  readonly url: string;
+  readonly url: string
 
   /**
    * The XMLHttpRequest object used for loading the resource.
    */
-  readonly xhr: XMLHttpRequest;
+  readonly xhr: XMLHttpRequest
 
   /**
    * The total number of bytes of the resource.
    */
-  bytes = 0;
+  bytes = 0
 
   /**
    * The number of bytes loaded so far.
    */
-  bytesLoaded = 0;
+  bytesLoaded = 0
 
   /**
    * Indicates whether a timeout occurred during loading.
    */
-  timeout = false;
+  timeout = false
 
   /**
    * Indicates whether the resource has been loaded successfully.
    */
-  loaded = false;
+  loaded = false
 
   /**
    * Indicates whether the resource is currently being loaded.
    */
-  loading = false;
+  loading = false
 
   /**
    * Indicates whether an error occurred during loading.
    */
-  errored = false;
+  errored = false
 
   /**
    * The progress of the loading process, ranging from 0 to 1.
    */
-  progress = 0;
+  progress = 0
 
   /**
    * Indicates whether the loading process has been aborted.
    */
-  aborted = false;
+  aborted = false
 
   /**
    * Indicates whether the loading process is pending.
    */
-  pending = false;
+  pending = false
 
   /**
    * The Blob object representing the loaded resource.
    */
-  blob: Blob | null = null;
+  blob: Blob | null = null
 
   /**
    * The headers to be sent with the request.
    */
-  headers: Headers | null;
+  headers: Headers | null
 
   /**
    * The number of times to retry loading the resource.
    */
-  retry = 3;
+  retry = 3
 
   /**
    * The number of retries that have been attempted.
    */
-  retries = 0;
+  retries = 0
 
   /**
    * Constructs a new Loader instance.
@@ -204,36 +204,36 @@ export class Loader extends Logger {
     super({
       name,
       logLevel,
-    });
-    this.url = url;
-    this.headers = headers;
-    this.retry = retry ?? this.retry;
-    this.xhr = new XMLHttpRequest();
-    this.xhr.responseType = 'arraybuffer';
+    })
+    this.url = url
+    this.headers = headers
+    this.retry = retry ?? this.retry
+    this.xhr = new XMLHttpRequest()
+    this.xhr.responseType = 'arraybuffer'
   }
 
   /**
    * Aborts the loading process.
    */
   abort() {
-    this.xhr.abort();
+    this.xhr.abort()
   }
 
   /**
    * Starts loading the resource.
    */
   load() {
-    this.pending = true;
+    this.pending = true
     // assign event handlers
-    this.xhr.onload = this.#onLoaded;
-    this.xhr.onloadstart = this.#onLoadStart;
-    this.xhr.onprogress = this.#onProgress;
-    this.xhr.onerror = this.#onLoadError;
-    this.xhr.onabort = this.#onLoadAborted;
-    this.xhr.ontimeout = this.#onLoadTimeout;
-    this.xhr.open('GET', this.url, true);
-    this.#setHeaders();
-    this.xhr.send();
+    this.xhr.onload = this.#onLoaded
+    this.xhr.onloadstart = this.#onLoadStart
+    this.xhr.onprogress = this.#onProgress
+    this.xhr.onerror = this.#onLoadError
+    this.xhr.onabort = this.#onLoadAborted
+    this.xhr.ontimeout = this.#onLoadTimeout
+    this.xhr.open('GET', this.url, true)
+    this.#setHeaders()
+    this.xhr.send()
   }
 
   /**
@@ -241,7 +241,7 @@ export class Loader extends Logger {
    * @returns True if the resource is loading, false otherwise.
    */
   isLoading() {
-    return this.pending || this.loading;
+    return this.pending || this.loading
   }
 
   //-----------------------------   PRIVATE METHODS   --------------------------
@@ -251,27 +251,27 @@ export class Loader extends Logger {
    */
   #setHeaders() {
     if (!this.headers) {
-      return;
+      return
     }
-    const headers = Object.entries(this.headers) as [keyof Headers, string][];
+    const headers = Object.entries(this.headers) as [keyof Headers, string][]
     headers.forEach(([key, value]) => {
-      this.xhr.setRequestHeader(key, value);
-    });
+      this.xhr.setRequestHeader(key, value)
+    })
   }
 
   /**
    * Event handler for when the resource is loaded successfully.
    */
   #onLoaded = () => {
-    this.blob = new Blob([this.xhr.response]);
-    this.bytes = this.blob.size;
-    this.loaded = true;
-    this.loading = false;
-    this.progress = 1;
-    Loader.loaded++;
-    this.log.verbose(['Loaded', this.url, 'bytes', this.bytes]);
-    this.emit('loadend', { bytes: this.bytes });
-  };
+    this.blob = new Blob([this.xhr.response])
+    this.bytes = this.blob.size
+    this.loaded = true
+    this.loading = false
+    this.progress = 1
+    Loader.loaded++
+    this.log.verbose(['Loaded', this.url, 'bytes', this.bytes])
+    this.emit('loadend', { bytes: this.bytes })
+  }
 
   /**
    * Event handler for the progress of the loading process.
@@ -279,13 +279,13 @@ export class Loader extends Logger {
    */
   #onProgress = (event: ProgressEvent<EventTarget>) => {
     // cobalt fix
-    this.bytes = event.total || event.loaded;
-    this.bytesLoaded = event.loaded;
+    this.bytes = event.total || event.loaded
+    this.bytesLoaded = event.loaded
     // cobalt fix
     // keep progress at 0.5 if total is not available
     this.progress = event.total
       ? parseFloat((event.loaded / event.total).toFixed(2))
-      : 0.5;
+      : 0.5
 
     this.log.verbose([
       'Progress',
@@ -296,31 +296,31 @@ export class Loader extends Logger {
       this.bytes,
       'loaded',
       this.bytesLoaded,
-    ]);
-    this.emit('progress', { progress: this.progress });
-  };
+    ])
+    this.emit('progress', { progress: this.progress })
+  }
 
   /**
    * Event handler for when the loading process starts.
    */
   #onLoadStart = () => {
-    this.loading = true;
-    this.pending = false;
-    this.log.verbose(['Start', this.url]);
-    this.emit('loadstart');
-  };
+    this.loading = true
+    this.pending = false
+    this.log.verbose(['Start', this.url])
+    this.emit('loadstart')
+  }
 
   /**
    * Event handler for when the loading process is aborted.
    */
   #onLoadAborted = () => {
-    this.aborted = true;
-    this.loading = false;
-    this.loaded = false;
-    Loader.aborted++;
-    this.log.verbose(['Aborted', this.url]);
-    this.emit('abort');
-  };
+    this.aborted = true
+    this.loading = false
+    this.loaded = false
+    Loader.aborted++
+    this.log.verbose(['Aborted', this.url])
+    this.emit('abort')
+  }
 
   /**
    * Retries loading the resource if the number of retries is less than the maximum.
@@ -328,12 +328,12 @@ export class Loader extends Logger {
    */
   #retryLoad() {
     if (this.retries < this.retry) {
-      this.retries++;
-      this.emit('retry', { retries: this.retries });
-      this.load();
-      return true;
+      this.retries++
+      this.emit('retry', { retries: this.retries })
+      this.load()
+      return true
     }
-    return false;
+    return false
   }
 
   /**
@@ -341,28 +341,28 @@ export class Loader extends Logger {
    */
   #onLoadTimeout = () => {
     if (this.#retryLoad()) {
-      return;
+      return
     }
-    this.loading = false;
-    this.loaded = false;
-    this.timeout = true;
-    Loader.timeout++;
-    this.log.error(['Timeout', this.url]);
-    this.emit('timeout');
-  };
+    this.loading = false
+    this.loaded = false
+    this.timeout = true
+    Loader.timeout++
+    this.log.error(['Timeout', this.url])
+    this.emit('timeout')
+  }
 
   /**
    * Event handler for when an error occurs during the loading process.
    */
   #onLoadError = () => {
     if (this.#retryLoad()) {
-      return;
+      return
     }
 
-    this.loading = false;
-    this.loaded = false;
-    this.errored = true;
-    Loader.errored++;
+    this.loading = false
+    this.loaded = false
+    this.errored = true
+    Loader.errored++
     this.log.error([
       'Error',
       this.url,
@@ -370,13 +370,13 @@ export class Loader extends Logger {
       this.xhr.status,
       'text',
       this.xhr.statusText,
-    ]);
+    ])
 
     this.emit('error', {
       statusText: this.xhr.statusText,
       status: this.xhr.status,
-    });
-  };
+    })
+  }
 
   //-----------------------------   EVENT HANDLING   ----------------------------
 
@@ -390,7 +390,7 @@ export class Loader extends Logger {
     type: T,
     handler: T extends LoaderEventTypes ? LoaderEventHandler<T> : never,
   ): this {
-    return super.on(type, handler);
+    return super.on(type, handler)
   }
 
   /**
@@ -403,7 +403,7 @@ export class Loader extends Logger {
     type: T,
     handler: T extends LoaderEventTypes ? LoaderEventHandler<T> : never,
   ): this {
-    return super.off(type, handler);
+    return super.off(type, handler)
   }
 
   /**
@@ -416,6 +416,6 @@ export class Loader extends Logger {
     type: T,
     data?: Omit<LoaderEvent<T>, 'target' | 'type'>,
   ): boolean {
-    return super.emit(type, { ...data, type, target: this });
+    return super.emit(type, { ...data, type, target: this })
   }
 }

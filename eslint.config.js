@@ -1,11 +1,11 @@
-import js from '@eslint/js';
-import typescriptPlugin from '@typescript-eslint/eslint-plugin';
-import typescriptParser from '@typescript-eslint/parser';
-import importPlugin from 'eslint-plugin-import';
-import prettierPlugin from 'eslint-plugin-prettier';
-import vitestGlobalsPlugin from 'eslint-plugin-vitest-globals';
+import js from '@eslint/js'
+import typescriptPlugin from '@typescript-eslint/eslint-plugin'
+import typescriptParser from '@typescript-eslint/parser'
+import importPlugin from 'eslint-plugin-import'
+import prettierPlugin from 'eslint-plugin-prettier'
+import vitestGlobalsPlugin from 'eslint-plugin-vitest-globals'
 
-const globalIgnorePatterns = ['node_modules', 'dist'];
+const globalIgnorePatterns = ['node_modules', 'dist']
 
 export default [
   // ESLint base configurations
@@ -126,4 +126,4 @@ export default [
       'no-undef': 'off', // Disable the default no-undef rule
     },
   },
-];
+]
