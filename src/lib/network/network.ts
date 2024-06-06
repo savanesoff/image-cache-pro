@@ -5,19 +5,19 @@
  * and it emits events to indicate the progress of the loading process.
  * It also limits the number of concurrent loaders to avoid overloading the network.
  */
-import { LoaderEventTypes, Loader, LoaderEvent } from '@lib/loader';
-import { Logger } from '@lib/logger';
+import { LoaderEventTypes, Loader, LoaderEvent } from '@lib/loader'
+import { Logger } from '@lib/logger'
 
-export type NetworkEventTypes = LoaderEventTypes | 'pause' | 'resume';
+export type NetworkEventTypes = LoaderEventTypes | 'pause' | 'resume'
 
 type NetworkEvent<T extends NetworkEventTypes> = {
-  event: T;
-  target: Network;
-};
+  event: T
+  target: Network
+}
 
 export type NetworkEventHandler<T extends NetworkEventTypes> = (
   event: NetworkEvent<T>,
-) => void;
+) => void
 
 // List of loader events
 const loaderEvent: LoaderEventTypes[] = [
@@ -27,12 +27,12 @@ const loaderEvent: LoaderEventTypes[] = [
   'error',
   'timeout',
   'loadend',
-];
+]
 
 export type NetworkProps = {
   /** Number of loaders in parallel */
-  loaders?: number;
-};
+  loaders?: number
+}
 
 /**
  * Network class that manages the loading of resources over the network.
@@ -64,11 +64,11 @@ export type NetworkProps = {
  * ```
  */
 export class Network extends Logger {
-  readonly inFlight = new Map<string, Loader>();
-  readonly queue = new Map<string, Loader>();
+  readonly inFlight = new Map<string, Loader>()
+  readonly queue = new Map<string, Loader>()
   /** Browser default */
-  maxLoaders = 6;
-  paused = false;
+  maxLoaders = 6
+  paused = false
 
   /**
    * Represents a network object.
@@ -77,8 +77,8 @@ export class Network extends Logger {
     super({
       name: 'Network',
       logLevel: 'none',
-    });
-    this.maxLoaders = loaders ?? this.maxLoaders;
+    })
+    this.maxLoaders = loaders ?? this.maxLoaders
   }
 
   /**
@@ -87,25 +87,25 @@ export class Network extends Logger {
   add(loader: Loader) {
     // ensure we don't add the same image twice
     if (!this.queue.has(loader.url) && !this.inFlight.has(loader.url)) {
-      this.queue.set(loader.url, loader);
+      this.queue.set(loader.url, loader)
     }
     // in case processing queue is empty, start processing
-    this.#update();
+    this.#update()
   }
 
   /**
    * Removes image from network queue
    */
   remove(loader: Loader) {
-    const queuedImage = this.queue.get(loader.url);
+    const queuedImage = this.queue.get(loader.url)
     if (queuedImage) {
-      this.queue.delete(loader.url);
-      this.#update();
+      this.queue.delete(loader.url)
+      this.#update()
     }
 
-    const inFlight = this.inFlight.get(loader.url);
+    const inFlight = this.inFlight.get(loader.url)
     if (inFlight) {
-      inFlight.abort();
+      inFlight.abort()
     }
   }
 
@@ -116,27 +116,27 @@ export class Network extends Logger {
    */
   clear() {
     for (const loader of this.inFlight.values()) {
-      loader.abort();
+      loader.abort()
     }
-    this.inFlight.clear();
-    this.queue.clear();
+    this.inFlight.clear()
+    this.queue.clear()
   }
 
   /**
    * Pauses all network requests and emits a "pause" event.
    */
   pause() {
-    this.paused = true;
-    this.emit('pause');
+    this.paused = true
+    this.emit('pause')
   }
 
   /**
    * Resumes all network requests and emits a "resume" event.
    */
   resume() {
-    this.paused = false;
-    this.emit('resume');
-    this.#update();
+    this.paused = false
+    this.emit('resume')
+    this.#update()
   }
 
   //-----------------------------   PRIVATE METHODS   ---------------------------
@@ -145,18 +145,18 @@ export class Network extends Logger {
    * Cancels all network requests
    */
   #update() {
-    if (this.inFlight.size >= this.maxLoaders) return;
+    if (this.inFlight.size >= this.maxLoaders) return
 
-    const entries = this.queue.entries();
+    const entries = this.queue.entries()
     for (const [url, loader] of entries) {
-      if (this.inFlight.size >= this.maxLoaders) return;
+      if (this.inFlight.size >= this.maxLoaders) return
       if (this.paused) {
-        this.log.warn(['Network paused!']);
-        return;
+        this.log.warn(['Network paused!'])
+        return
       }
-      this.inFlight.set(url, loader);
-      this.queue.delete(url);
-      this.#launch(loader);
+      this.inFlight.set(url, loader)
+      this.queue.delete(url)
+      this.#launch(loader)
     }
   }
 
@@ -175,22 +175,22 @@ export class Network extends Logger {
       case 'abort':
       case 'timeout':
       case 'error':
-        loader.off(type, this.#onLoaderEvent);
-        this.inFlight.delete(loader.url);
-        this.emit(type, loader);
-        this.#update();
-        break;
+        loader.off(type, this.#onLoaderEvent)
+        this.inFlight.delete(loader.url)
+        this.emit(type, loader)
+        this.#update()
+        break
       default:
-        this.emit(type, loader);
+        this.emit(type, loader)
     }
-  };
+  }
 
   /**
    * Processes image
    */
   #launch(loader: Loader) {
-    loaderEvent.forEach(event => loader.on(event, this.#onLoaderEvent));
-    loader.load();
+    loaderEvent.forEach(event => loader.on(event, this.#onLoaderEvent))
+    loader.load()
   }
 
   //-----------------------------   EVENT EMITTER   ----------------------------
@@ -205,7 +205,7 @@ export class Network extends Logger {
     type: T,
     handler: NetworkEventHandler<T>,
   ): this {
-    return super.on(type, handler);
+    return super.on(type, handler)
   }
 
   /**
@@ -218,7 +218,7 @@ export class Network extends Logger {
     type: T,
     handler: NetworkEventHandler<T>,
   ): this {
-    return super.off(type, handler);
+    return super.off(type, handler)
   }
 
   /**
@@ -232,6 +232,6 @@ export class Network extends Logger {
       type,
       loader,
       target: this,
-    });
+    })
   }
 }

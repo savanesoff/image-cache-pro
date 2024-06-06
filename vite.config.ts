@@ -1,10 +1,10 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { defineConfig } from 'vite';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { defineConfig } from 'vite'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export default defineConfig({
   build: {
@@ -32,4 +32,4 @@ export default defineConfig({
     },
   },
   plugins: [tsconfigPaths()],
-});
+})

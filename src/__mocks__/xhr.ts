@@ -8,4 +8,4 @@ export const XHR = {
   setRequestHeader: vi
     .spyOn(XMLHttpRequest.prototype, 'setRequestHeader')
     .mockImplementation(() => null),
-};
+}

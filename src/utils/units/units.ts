@@ -8,5 +8,5 @@ export const UNITS = {
   MB: Math.pow(1024, 2),
   GB: Math.pow(1024, 3),
   TB: Math.pow(1024, 4),
-};
-export type UnitsType = keyof typeof UNITS;
+}
+export type UnitsType = keyof typeof UNITS

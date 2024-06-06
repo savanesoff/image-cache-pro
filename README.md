@@ -127,7 +127,7 @@ Is the main cache controller instance that manages the memory usage of the image
 Its recommended to create a single instance of the controller for the entire application, however, you can create multiple instances if you must.
 
 ```ts
-import { Controller } from 'image-cache-pro';
+import { Controller } from 'image-cache-pro'
 
 const controller = new Controller({
   // Configuration options
@@ -136,20 +136,20 @@ const controller = new Controller({
   GPU: 300, // units of memory for GPU usage
   units: 'MB', // 'KB', 'MB', 'GB' units of memory for RAM and GPU
   loaders: 4, // number of concurrent image loaders - max 6
-});
+})
 
 // add event listeners if you must
 controller.on('update', (event: ControllerEvent<'update'>) => {
-  console.log('Controller update event:', event);
-});
+  console.log('Controller update event:', event)
+})
 
 controller.on('ram-overflow', (event: ControllerEvent<'ram-overflow'>) => {
-  console.log('Controller RAM overflow event:', event); // take action to prevent RAM overflow
-});
+  console.log('Controller RAM overflow event:', event) // take action to prevent RAM overflow
+})
 
 controller.on('video-overflow', (event: ControllerEvent<'video-overflow'>) => {
-  console.log('Controller GPU overflow event:', event); // take action to prevent GPU overflow
-});
+  console.log('Controller GPU overflow event:', event) // take action to prevent GPU overflow
+})
 ```
 
 ### Bucket
@@ -160,7 +160,7 @@ You can create unlimited buckets, but it's recommended to create a single bucket
 Bucket will automatically load and render images in the background, and you can monitor the progress of the images being pre-rendered by listening to the `rendered` event.
 
 ```ts
-import { Bucket } from 'image-cache-pro';
+import { Bucket } from 'image-cache-pro'
 
 const bucket = new Bucket({
   // Configuration options
@@ -168,19 +168,19 @@ const bucket = new Bucket({
   controller, // pass the controller instance
   lock: true, // lock the bucket to prevent eviction of images in you need the data to persist in the cache
   name: 'Recent Images', // name of the bucket - optional, good for debugging
-});
+})
 
 // wait for all bucket requests to be pre-rendered do you can trigger smooth rendering of the images on the screen
 bucket.on('rendered', (event: BucketEvent<'rendered'>) => {
-  console.log('All bucket requests are pre-rendered:', event);
+  console.log('All bucket requests are pre-rendered:', event)
   // ex: myGallery.fadeIn();
-});
+})
 
 // you can clear (release) bucket content by calling clear method
 myGallery.on('exit', event => {
-  bucket.clear();
-  console.log('Bucket cleared:', event);
-});
+  bucket.clear()
+  console.log('Bucket cleared:', event)
+})
 ```
 
 ### RenderRequest
@@ -227,7 +227,7 @@ export type ControllerEventTypes =
   | 'image-removed' // image removed from the cache
   | 'clear' // cache clear event
   | 'render-request-added' // image render request added
-  | 'render-request-removed'; // image render request removed
+  | 'render-request-removed' // image render request removed
 ```
 
 ### Bucket Events
@@ -243,7 +243,7 @@ export type BucketEventTypes =
   | 'request-rendered' // when image render request is pre-rendered
   | 'request-loadend' // when image render request is loaded
   | 'render-progress' // image render progress
-  | 'update'; // bucket update - general event
+  | 'update' // bucket update - general event
 ```
 
 ### RenderRequest Events
@@ -257,7 +257,7 @@ export type RenderRequestEventTypes =
   | 'loadstart' // image request load start
   | 'progress' // image request load progress
   | 'error' // image request load error
-  | 'render'; // image request render start
+  | 'render' // image request render start
 ```
 
 ### Network Events
@@ -272,7 +272,7 @@ const loaderEvent: LoaderEventTypes[] = [
   'error',
   'timeout',
   'loadend',
-];
+]
 ```
 
 ### Memory Events
@@ -286,7 +286,7 @@ export type MemoryEventTypes =
   | 'bytes-added'
   | 'bytes-removed'
   | 'cleared'
-  | 'update';
+  | 'update'
 ```
 
 ## LICENSE

@@ -1,2 +1,2 @@
-export * from './render-request';
-export * from './renderer';
+export * from './render-request'
+export * from './renderer'

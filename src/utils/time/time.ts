@@ -4,6 +4,6 @@ export const TIME_FORMAT: Intl.DateTimeFormatOptions = {
   second: '2-digit',
   fractionalSecondDigits: 3,
   hourCycle: 'h23',
-} as const;
+} as const
 
-export const now = () => new Date().toLocaleTimeString('en-US', TIME_FORMAT);
+export const now = () => new Date().toLocaleTimeString('en-US', TIME_FORMAT)

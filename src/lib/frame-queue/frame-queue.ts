@@ -23,46 +23,46 @@
  * const renderRequest = new RenderRequest({ id: "request1", priority: 1 });
  * frameQueue.add(renderRequest); // Add a render request to the queue
  */
-import { Logger, LoggerProps } from '@lib/logger';
-import { RenderRequest } from '@lib/request';
+import { Logger, LoggerProps } from '@lib/logger'
+import { RenderRequest } from '@lib/request'
 
-export type FrameQueueEventTypes = 'rendered' | 'request-added' | 'processed';
+export type FrameQueueEventTypes = 'rendered' | 'request-added' | 'processed'
 /** FrameQueue event */
 export type FrameQueueEvent<T extends FrameQueueEventTypes> = {
   /** The type of the event */
-  type: T;
+  type: T
   /** The target of the event */
-  target: FrameQueue;
-} & (T extends 'request-added' ? { request: RenderRequest } : unknown);
+  target: FrameQueue
+} & (T extends 'request-added' ? { request: RenderRequest } : unknown)
 /** FrameQueue event handler */
 export type FrameQueueEventHandler<T extends FrameQueueEventTypes> = (
   event: FrameQueueEvent<T>,
-) => void;
+) => void
 
 export type RendererProps = {
   /** The estimated render time for the request depending on the image size and HW rank */
-  renderTime: number;
-};
+  renderTime: number
+}
 
 /** Render function */
-export type RenderFunction = (props: RendererProps) => void;
+export type RenderFunction = (props: RendererProps) => void
 
 /** FrameQueue properties */
 export type FrameQueueProps = LoggerProps & {
   /** The hardware rank number between 0 and 1, where 1 is the fastest */
-  hwRank?: number;
-};
+  hwRank?: number
+}
 
 /**
  * FrameQueue is a queue that processes callbacks in the next animation frame.
  */
 export class FrameQueue extends Logger {
   /** Flag to indicate if the queue is scheduled */
-  private scheduled = false;
+  private scheduled = false
   /** Hardware rank number between 0 and 1, where 1 is the fastest */
-  readonly hwRank: number;
+  readonly hwRank: number
   /** Set of render requests */
-  readonly queue = new Set<RenderRequest>();
+  readonly queue = new Set<RenderRequest>()
   /**
    * The number of bytes per frame ratio estimate.
    * This value determines how fast a platform can render a frame based on
@@ -70,7 +70,7 @@ export class FrameQueue extends Logger {
    * Where bytes refers to the uncompressed image size.
    * and can be adjusted based on the platform's performance.
    */
-  static readonly bytesPerFrameRatio = 500;
+  static readonly bytesPerFrameRatio = 500
 
   constructor({
     name = 'Frame queue',
@@ -80,9 +80,9 @@ export class FrameQueue extends Logger {
     super({
       name,
       logLevel,
-    });
-    this.hwRank = hwRank;
-    this.log.info([`hwRank: ${this.hwRank}`]);
+    })
+    this.hwRank = hwRank
+    this.log.info([`hwRank: ${this.hwRank}`])
   }
 
   /**
@@ -90,10 +90,10 @@ export class FrameQueue extends Logger {
    * @param request
    */
   add(request: RenderRequest) {
-    this.queue.add(request);
-    this.emit('request-added', { request });
-    this.log.info([`added: ${this.queue.size}`]);
-    this.#next();
+    this.queue.add(request)
+    this.emit('request-added', { request })
+    this.log.info([`added: ${this.queue.size}`])
+    this.#next()
   }
 
   //------------------------   PRIVATE METHODS   -------------------------------
@@ -106,8 +106,8 @@ export class FrameQueue extends Logger {
     const time = request.image.isDecoded(request.size)
       ? 0
       : (request.image.bytesUncompressed / FrameQueue.bytesPerFrameRatio) *
-        (1 - this.hwRank);
-    return time;
+        (1 - this.hwRank)
+    return time
   }
 
   /**
@@ -115,35 +115,31 @@ export class FrameQueue extends Logger {
    * Waits for the current request to be processed before processing the next one.
    */
   #next() {
-    if (this.scheduled) return;
-    this.scheduled = true;
+    if (this.scheduled) return
+    this.scheduled = true
     // get the request in the order they were added
     const request = this.queue.values().next().value as
       | RenderRequest
-      | undefined;
+      | undefined
     if (!request) {
-      this.scheduled = false;
-      return;
+      this.scheduled = false
+      return
     }
 
-    const renderTime = this.#getRenderTime(request);
+    const renderTime = this.#getRenderTime(request)
 
     this.log.info([
       `processing: ${this.queue.size}`,
       `renderTime: ${renderTime}`,
-    ]);
-    this.queue.delete(request);
-    request.render({ renderTime });
+    ])
+    this.queue.delete(request)
+    request.render({ renderTime })
 
     setTimeout(() => {
-      this.scheduled = false;
-      this.#next();
-      this.log.verbose([
-        'processed',
-        request,
-        `queue size: ${this.queue.size}`,
-      ]);
-    }, renderTime);
+      this.scheduled = false
+      this.#next()
+      this.log.verbose(['processed', request, `queue size: ${this.queue.size}`])
+    }, renderTime)
   }
 
   //------------------------   EVENT EMITTER METHODS   -------------------------
@@ -158,7 +154,7 @@ export class FrameQueue extends Logger {
     type: T,
     handler: FrameQueueEventHandler<T>,
   ): this {
-    return super.on(type, handler);
+    return super.on(type, handler)
   }
 
   /**
@@ -171,7 +167,7 @@ export class FrameQueue extends Logger {
     type: T,
     handler: FrameQueueEventHandler<T>,
   ): this {
-    return super.off(type, handler);
+    return super.off(type, handler)
   }
 
   /**
@@ -184,6 +180,6 @@ export class FrameQueue extends Logger {
     type: T,
     data?: Omit<FrameQueueEvent<T>, 'target' | 'type'>,
   ): boolean {
-    return super.emit(type, { ...data, type, target: this });
+    return super.emit(type, { ...data, type, target: this })
   }
 }
