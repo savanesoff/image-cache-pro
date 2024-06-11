@@ -178,7 +178,11 @@ export class Controller extends Logger {
    * @returns
    */
   #createImage(props: ImgProps): Img {
-    const image = new Img({ ...props, gpuDataFull: this.gpuDataFull })
+    const image = new Img({
+      ...props,
+      gpuDataFull: this.gpuDataFull,
+      logLevel: this.level,
+    })
     this.cache.set(image.url, image) // TODO blob is network data, once we get image size any render of size will consume raw width/height data for ram
     image.on('loadend', this.#onImageLoadend)
     image.on('size', this.#onImageDecoded)
