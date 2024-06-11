@@ -1,5 +1,11 @@
 # image-cache-pro
 
+## 0.6.0
+
+### Minor Changes
+
+- 1c44dd6: image type and server error fixes
+
 ## 0.5.3
 
 ### Patch Changes
