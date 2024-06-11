@@ -32,6 +32,8 @@ const loaderEvent: LoaderEventTypes[] = [
 export type NetworkProps = {
   /** Number of loaders in parallel */
   loaders?: number
+  /** Log level */
+  logLevel?: LogLevel
 }
 
 /**
@@ -73,12 +75,12 @@ export class Network extends Logger {
   /**
    * Represents a network object.
    */
-  constructor({ loaders }: NetworkProps = {}) {
+  constructor({ loaders = 6, logLevel = 'error' }: NetworkProps) {
     super({
       name: 'Network',
-      logLevel: 'none',
+      logLevel,
     })
-    this.maxLoaders = loaders ?? this.maxLoaders
+    this.maxLoaders = Math.min(loaders, this.maxLoaders)
   }
 
   /**

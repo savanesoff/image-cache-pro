@@ -117,7 +117,7 @@ export class Controller extends Logger {
       logLevel,
       hwRank,
     })
-    this.network = new Network({ loaders })
+    this.network = new Network({ loaders, logLevel })
     this.ram = new Memory({
       size: ram,
       units,
