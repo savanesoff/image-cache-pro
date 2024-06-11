@@ -1,12 +1,10 @@
-/**
- * Decodes the image data from a Blob to get the image type and dimensions.
- * This is done to help support the image decoding process in the browsers that do not support the ImageBitmap API.
- */
 import { getImageType, ImageType } from '../image-type'
 import { getBmpDimensions } from './bmp-decoder'
 import { getGifDimensions } from './gif-decoder'
 import { getJpegDimensions } from './jpeg-decoder'
 import { getPngDimensions } from './png-decoder'
+import { getTiffDimensions } from './tiff-decoder'
+import { getWebpDimensions } from './webp-decoder'
 
 /**
  * The dimensions of an image.
@@ -24,14 +22,14 @@ export type ImageData = {
   size: Size
   arrayBuffer: ArrayBuffer
 }
+
 /**
  * Decode the image data from a Blob to get the image type and dimensions.
  */
 export async function getImageData(
   arrayBuffer: ArrayBuffer,
 ): Promise<ImageData> {
-  // const arrayBuffer = await blobToArrayBuffer(blob);
-  const type = await getImageType(arrayBuffer)
+  const type = await getImageType(arrayBuffer).catch(() => 'unknown')
   switch (type) {
     case 'image/png':
       return { arrayBuffer, type, size: await getPngDimensions(arrayBuffer) }
@@ -41,7 +39,11 @@ export async function getImageData(
       return { arrayBuffer, type, size: await getBmpDimensions(arrayBuffer) }
     case 'image/gif':
       return { arrayBuffer, type, size: await getGifDimensions(arrayBuffer) }
+    case 'image/webp':
+      return { arrayBuffer, type, size: await getWebpDimensions(arrayBuffer) }
+    case 'image/tiff':
+      return { arrayBuffer, type, size: await getTiffDimensions(arrayBuffer) }
     default:
-      throw new Error(`Unsupported image type: "${type}"`)
+      return { arrayBuffer, type: 'unknown', size: { width: 0, height: 0 } }
   }
 }
