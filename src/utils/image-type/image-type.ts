@@ -28,7 +28,7 @@ export const getImageType = async (
       return 'image/png'
     case /^47494638/.test(header):
       return 'image/gif'
-    case /^ffd8ffe/.test(header):
+    case /^ffd8ff/.test(header):
       return 'image/jpeg'
     case /^49492a00/.test(header):
     case /^4d4d002a/.test(header):
@@ -45,7 +45,9 @@ export const getImageType = async (
     case /^6674797068656963/.test(header):
       throw new Error('HEIC is not supported')
     default:
-      console.error('Unknown image type', header)
-      throw new Error('Unknown image type')
+      console.log(new Uint8Array(arrayBuffer))
+      throw new Error(
+        `Unknown image type: header not recognized (${header}), buffer: [${arrayBuffer}]`,
+      )
   }
 }
