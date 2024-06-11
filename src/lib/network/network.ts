@@ -179,7 +179,7 @@ export class Network extends Logger {
       case 'error':
         loader.off(type, this.#onLoaderEvent)
         this.inFlight.delete(loader.url)
-        this.emit(type, loader)
+        // this.emit(type, loader) // this goes into some kind of infinite loop on error
         this.#update()
         break
       default:
