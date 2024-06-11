@@ -13,7 +13,7 @@ export type NetworkEventTypes = LoaderEventTypes | 'pause' | 'resume'
 type NetworkEvent<T extends NetworkEventTypes> = {
   event: T
   target: Network
-}
+} & (T extends LoaderEventTypes ? LoaderEvent<T> : unknown)
 
 export type NetworkEventHandler<T extends NetworkEventTypes> = (
   event: NetworkEvent<T>,
@@ -81,6 +81,8 @@ export class Network extends Logger {
       logLevel,
     })
     this.maxLoaders = Math.min(loaders, this.maxLoaders)
+    // set default error handler
+    this.on('error', this.#onError)
   }
 
   /**
@@ -179,7 +181,7 @@ export class Network extends Logger {
       case 'error':
         loader.off(type, this.#onLoaderEvent)
         this.inFlight.delete(loader.url)
-        // this.emit(type, loader) // this goes into some kind of infinite loop on error
+        this.emit(type, loader) // this goes into some kind of infinite loop on error
         this.#update()
         break
       default:
@@ -193,6 +195,10 @@ export class Network extends Logger {
   #launch(loader: Loader) {
     loaderEvent.forEach(event => loader.on(event, this.#onLoaderEvent))
     loader.load()
+  }
+
+  #onError = (event: NetworkEvent<'error'>) => {
+    this.log.error([event.status, event.statusText])
   }
 
   //-----------------------------   EVENT EMITTER   ----------------------------
