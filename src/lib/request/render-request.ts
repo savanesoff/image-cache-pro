@@ -53,7 +53,7 @@ export class RenderRequest extends Logger {
   requested = false
   cleared = false
   #renderTimeout: ReturnType<typeof setTimeout> | null = null
-
+  error: string | null = null
   /**
    * Constructs a new RenderRequest instance.
    * @param size - The size of the image.
@@ -61,7 +61,7 @@ export class RenderRequest extends Logger {
    * @param props - Additional properties for the request.
    */
   constructor({ size, bucket, ...props }: RenderRequestProps) {
-    super({ name: 'RenderRequest', logLevel: 'error' })
+    super({ name: 'RenderRequest', logLevel: bucket.controller.level })
     this.size = size
     this.bucket = bucket
     this.frameQueue = this.bucket.controller.frameQueue
@@ -71,6 +71,8 @@ export class RenderRequest extends Logger {
     this.image.on('loadstart', this.#onloadStart)
     this.image.on('progress', this.#onProgress)
     this.image.on('error', this.#onImageError)
+    // this.image.on('loadend', this.#onLoadEnd)
+    this.on('error', this.#onError)
 
     if (!this.image.loaded) {
       this.image.on('size', this.request)
@@ -78,11 +80,17 @@ export class RenderRequest extends Logger {
       this.log.verbose(['Image already decoded', this.image.url])
       this.bytesVideo = this.image.getBytesVideo(this.size)
       this.rendered = true
-      setTimeout(() => this.#onRendered(), 0)
+      setTimeout(this.#onRendered, 0)
     } else {
       this.emit('progress')
       this.request()
     }
+  }
+
+  // a default handler
+  #onError = (event: RenderRequestEvent<'error'>) => {
+    this.log.error(['Image error', event.statusText, 'status', event.status])
+    this.error = 'loadend error: ' + event.statusText
   }
 
   #onImageError = (event: ImgEvent<'error'>) => {
@@ -93,6 +101,9 @@ export class RenderRequest extends Logger {
   }
   #onloadStart = (event: ImgEvent<'loadstart'>) => {
     this.emit('loadstart', event)
+  }
+  #onLoadEnd = (event: ImgEvent<'loadend'>) => {
+    this.emit('loadend', event)
   }
 
   /**
@@ -116,6 +127,7 @@ export class RenderRequest extends Logger {
     this.image.off('loadstart', this.#onloadStart)
     this.image.off('progress', this.#onProgress)
     this.image.off('error', this.#onImageError)
+    this.image.off('loadend', this.#onLoadEnd)
     this.emit('clear')
     if (this.#renderTimeout) {
       clearTimeout(this.#renderTimeout)

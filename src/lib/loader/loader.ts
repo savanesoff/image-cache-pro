@@ -24,6 +24,7 @@
  * loader.load("http://example.com/resource");
  */
 import { Logger, LoggerProps } from '@lib/logger'
+import { isValidArrayBuffer } from '@utils'
 
 export type MIMEType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 
@@ -267,8 +268,26 @@ export class Loader extends Logger {
    * Event handler for when the resource is loaded successfully.
    */
   #onLoaded = () => {
-    this.blob = new Blob([this.xhr.response])
-    this.bytes = this.blob.size
+    // if data is valid, else, retry
+    // because we need to make sure we didn't get a server error (HTML response)
+    if (!isValidArrayBuffer(this.xhr.response)) {
+      this.log.warn(['Invalid Array buffer. Possible server error', this.url])
+      this.#onLoadError()
+      return
+    }
+
+    try {
+      this.blob = new Blob([this.xhr.response])
+      this.bytes = this.blob.size
+    } catch (e) {
+      this.blob = null
+      this.bytes = this.bytesLoaded
+      this.emit('error', {
+        statusText: 'Error creating blob',
+        status: 500,
+      })
+      return
+    }
     this.loaded = true
     this.loading = false
     this.progress = 1
@@ -333,6 +352,7 @@ export class Loader extends Logger {
   #retryLoad() {
     if (this.retries < this.retry) {
       this.retries++
+      this.log.info(['Retry', this.url, 'retries', this.retries])
       this.emit('retry', { retries: this.retries })
       this.load()
       return true

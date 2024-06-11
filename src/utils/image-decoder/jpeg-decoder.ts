@@ -3,9 +3,7 @@ import { Size } from './image-data'
 /**
  * Get the dimensions of a JPEG image.
  */
-export async function getJpegDimensions(
-  arrayBuffer: ArrayBuffer,
-): Promise<Size> {
+export function getJpegDimensions(arrayBuffer: ArrayBuffer): Size {
   const dataView = new DataView(arrayBuffer)
   let offset = 2 // Skip the initial 0xFFD8 marker
 

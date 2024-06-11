@@ -6,14 +6,14 @@
  * It also limits the number of concurrent loaders to avoid overloading the network.
  */
 import { LoaderEventTypes, Loader, LoaderEvent } from '@lib/loader'
-import { Logger } from '@lib/logger'
+import { Logger, LogLevel } from '@lib/logger'
 
 export type NetworkEventTypes = LoaderEventTypes | 'pause' | 'resume'
 
 type NetworkEvent<T extends NetworkEventTypes> = {
   event: T
   target: Network
-}
+} & (T extends LoaderEventTypes ? LoaderEvent<T> : unknown)
 
 export type NetworkEventHandler<T extends NetworkEventTypes> = (
   event: NetworkEvent<T>,
@@ -32,6 +32,8 @@ const loaderEvent: LoaderEventTypes[] = [
 export type NetworkProps = {
   /** Number of loaders in parallel */
   loaders?: number
+  /** Log level */
+  logLevel?: LogLevel
 }
 
 /**
@@ -73,12 +75,14 @@ export class Network extends Logger {
   /**
    * Represents a network object.
    */
-  constructor({ loaders }: NetworkProps = {}) {
+  constructor({ loaders = 6, logLevel = 'error' }: NetworkProps) {
     super({
       name: 'Network',
-      logLevel: 'none',
+      logLevel,
     })
-    this.maxLoaders = loaders ?? this.maxLoaders
+    this.maxLoaders = Math.min(loaders, this.maxLoaders)
+    // set default error handler
+    this.on('error', this.#onError)
   }
 
   /**
@@ -177,7 +181,7 @@ export class Network extends Logger {
       case 'error':
         loader.off(type, this.#onLoaderEvent)
         this.inFlight.delete(loader.url)
-        this.emit(type, loader)
+        this.emit(type, loader) // this goes into some kind of infinite loop on error
         this.#update()
         break
       default:
@@ -191,6 +195,10 @@ export class Network extends Logger {
   #launch(loader: Loader) {
     loaderEvent.forEach(event => loader.on(event, this.#onLoaderEvent))
     loader.load()
+  }
+
+  #onError = (event: NetworkEvent<'error'>) => {
+    this.log.error([event.status, event.statusText])
   }
 
   //-----------------------------   EVENT EMITTER   ----------------------------

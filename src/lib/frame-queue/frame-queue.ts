@@ -138,7 +138,11 @@ export class FrameQueue extends Logger {
     setTimeout(() => {
       this.scheduled = false
       this.#next()
-      this.log.verbose(['processed', request, `queue size: ${this.queue.size}`])
+      this.log.verbose([
+        'processed request',
+        request.image.url,
+        `queue size: ${this.queue.size}`,
+      ])
     }, renderTime)
   }
 

@@ -77,6 +77,7 @@ export type ImgProps = LoaderProps & {
   type?: ImageColorType
   gpuDataFull?: boolean
   mimeType?: ImageType
+  size?: Size
 }
 
 /**
@@ -107,6 +108,7 @@ export class Img extends Loader {
    */
   readonly gpuDataFull: boolean
   size: Size = { width: 0, height: 0 }
+  defaultSize: Size = { width: 500, height: 800 }
 
   constructor({
     headers = {
@@ -117,6 +119,7 @@ export class Img extends Loader {
     logLevel = 'error',
     name = 'Image',
     mimeType = 'unknown',
+    size,
     ...props
   }: ImgProps) {
     super({
@@ -125,6 +128,7 @@ export class Img extends Loader {
       logLevel,
       ...props,
     })
+    this.defaultSize = size || this.defaultSize
     this.gpuDataFull = gpuDataFull
     this.mimeType = mimeType
     // TODO auto detect image type from headers or url
@@ -300,9 +304,10 @@ export class Img extends Loader {
    */
   #onLoadEnd() {
     if (!this.blob) {
-      throw new Error('No blob data found!')
+      this.log.error(['Blob is missing'])
+      this.emit('blob-error')
+      return
     }
-
     this.log.verbose([
       'onLoadEnd',
       'Blob:',
@@ -311,56 +316,59 @@ export class Img extends Loader {
       this.gpuDataFull,
     ])
 
+    this.#processData({
+      arrayBuffer: this.xhr.response,
+      blob: this.blob,
+    })
+  }
+
+  /**
+   * Initializes the image blob data
+   */
+  #processData({
+    arrayBuffer,
+    blob,
+  }: {
+    arrayBuffer: ArrayBuffer
+    blob: Blob
+  }) {
     // async call to get the image info like size and type
-    getImageData(this.xhr.response as ArrayBuffer)
-      .then(data => {
-        this.log.verbose([
-          'gotImageData',
-          'data:',
-          data,
-          'gpuDataFull:',
-          this.gpuDataFull,
-        ])
-        this.element.onload = () => this.#onBlobAssigned(data)
-        this.element.onerror = this.#onBlobError
-        // this does not work in Cobalt
-        if (this.gpuDataFull) {
-          setTimeout(() => this.#onBlobAssigned(data), 0)
-        } else if (this.blob) {
-          this.element.onload = () => this.#onBlobAssigned(data)
-          this.element.onerror = this.#onBlobError
-          this.element.src = URL.createObjectURL(this.blob)
-        } else {
-          throw new Error('No blob data found!')
-        }
-      })
-      .catch(error => {
-        this.log.error([
-          'getImageData',
-          'error:',
-          error.message,
-          'gpuDataFull:',
-          this.gpuDataFull,
-        ])
-      })
+    const imageData = getImageData(arrayBuffer)
+
+    if (this.mimeType !== 'unknown' && this.mimeType !== imageData.type) {
+      this.log.warn([
+        'Provided mimeType mismatch:',
+        `provided: ${this.mimeType}`,
+        `actual: ${imageData.type}`,
+      ])
+    }
+
+    // this does not work in Cobalt
+    if (this.gpuDataFull) {
+      setTimeout(() => this.#onBlobAssigned(imageData), 0)
+    } else {
+      this.element.onload = () => this.#onBlobAssigned(imageData)
+      this.element.onerror = this.#onBlobError
+      this.element.src = URL.createObjectURL(blob)
+    }
   }
 
   /**
    * Called when the image data is loaded
    */
   #onBlobAssigned = (data: ImageData) => {
+    if (this.gotSize) {
+      this.log.warn(['Size already set'])
+      return
+    }
+
     this.element.onload = null
     this.element.onerror = null
     this.size = data.size
-    this.element.width = this.element.width || data.size.width
-    this.element.height = this.element.height || data.size.height
-    if (this.mimeType !== data.type) {
-      this.log.warn([
-        'Presumed mimeType mismatch:',
-        `presumed: ${this.mimeType}`,
-        `actual: ${data.type}`,
-      ])
-    }
+    this.element.width =
+      this.element.width || data.size.width || this.defaultSize.width
+    this.element.height =
+      this.element.height || data.size.height || this.defaultSize.height
     this.mimeType = data.type
     // not really needed to have size separate from image props, but image can be cleared to free memory
     this.gotSize = true

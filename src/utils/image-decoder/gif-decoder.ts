@@ -3,9 +3,7 @@ import { Size } from './image-data'
 /**
  * Get the dimensions of a GIF image.
  */
-export async function getGifDimensions(
-  arrayBuffer: ArrayBuffer,
-): Promise<Size> {
+export function getGifDimensions(arrayBuffer: ArrayBuffer): Size {
   const dataView = new DataView(arrayBuffer)
 
   if (dataView.getUint32(0, false) !== 0x47494638) {
