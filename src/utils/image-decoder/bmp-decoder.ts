@@ -3,9 +3,7 @@ import { Size } from './image-data'
 /**
  * Get the dimensions of a BMP image.
  */
-export async function getBmpDimensions(
-  arrayBuffer: ArrayBuffer,
-): Promise<Size> {
+export function getBmpDimensions(arrayBuffer: ArrayBuffer): Size {
   const dataView = new DataView(arrayBuffer)
 
   if (dataView.getUint16(0, false) !== 0x424d) {

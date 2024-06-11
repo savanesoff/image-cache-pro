@@ -10,14 +10,33 @@ export type ImageType =
   | 'image/bmp'
   | 'image/webp'
   | 'image/tiff'
+  | 'image/svg'
+  | 'image/ico'
+  | 'image/heic'
   | 'unknown'
+
+export const supportedImageTypes: ImageType[] = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/bmp',
+  'image/webp',
+  'image/tiff',
+  // 'image/svg',
+  // 'image/ico',
+  // 'image/heic',
+]
+
+export const isSupportedType = (type: string): type is ImageType =>
+  supportedImageTypes.includes(type as ImageType)
+
+export const isValidArrayBuffer = (arrayBuffer: ArrayBuffer): boolean =>
+  isSupportedType(getImageType(arrayBuffer))
 
 /**
  * Get the type of an image from its ArrayBuffer.
  */
-export const getImageType = async (
-  arrayBuffer: ArrayBuffer,
-): Promise<ImageType> => {
+export const getImageType = (arrayBuffer: ArrayBuffer): ImageType => {
   const uint8Array = new Uint8Array(arrayBuffer).subarray(0, 12) // Read the first 12 bytes
 
   const header = uint8Array.reduce(
@@ -41,12 +60,12 @@ export const getImageType = async (
       return 'image/webp'
     case /^3c3f786d6c20/.test(header):
     case /^3c737667/.test(header):
-      throw new Error('SVG is not supported')
+      return 'image/svg'
     case /^00000100/.test(header):
-      throw new Error('ICO is not supported')
+      return 'image/ico'
     case /^6674797068656963/.test(header):
-      throw new Error('HEIC is not supported')
+      return 'image/heic'
     default:
-      throw new Error(`Unknown image type: header not recognized (${header})`)
+      return 'unknown'
   }
 }

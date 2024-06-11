@@ -3,9 +3,7 @@ import { Size } from './image-data'
 /**
  * Get the dimensions of a WebP image.
  */
-export async function getWebpDimensions(
-  arrayBuffer: ArrayBuffer,
-): Promise<Size> {
+export function getWebpDimensions(arrayBuffer: ArrayBuffer): Size {
   const dataView = new DataView(arrayBuffer)
   const riffHeader = dataView.getUint32(0, false)
 

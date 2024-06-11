@@ -6,9 +6,7 @@ import { Size } from './image-data'
 /**
  * Get the dimensions of a PNG image.
  */
-export async function getPngDimensions(
-  arrayBuffer: ArrayBuffer,
-): Promise<Size> {
+export function getPngDimensions(arrayBuffer: ArrayBuffer): Size {
   const dataView = new DataView(arrayBuffer)
 
   if (

@@ -3,9 +3,7 @@ import { Size } from './image-data'
 /**
  * Get the dimensions of a TIFF image.
  */
-export async function getTiffDimensions(
-  arrayBuffer: ArrayBuffer,
-): Promise<Size> {
+export function getTiffDimensions(arrayBuffer: ArrayBuffer): Size {
   const dataView = new DataView(arrayBuffer)
   const byteOrder = dataView.getUint16(0, false)
 
