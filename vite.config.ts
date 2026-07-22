@@ -24,8 +24,10 @@ export default defineConfig({
           sourcemap: true,
         },
         {
+          // .cjs: the package is type:module — plain .js here would be
+          // (mis)interpreted as ESM by Node and bundlers (publint)
           format: 'cjs',
-          entryFileNames: '[name].js',
+          entryFileNames: '[name].cjs',
           dir: 'dist/cjs',
           sourcemap: true,
         },

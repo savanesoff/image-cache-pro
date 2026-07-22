@@ -7,8 +7,8 @@ import { type Bucket } from '@lib/bucket'
 import { type FrameQueue } from '@lib/frame-queue'
 import { type Img, type ImgEvent, type ImgProps } from '@lib/image'
 import { Logger } from '@lib/logger'
+import { renderer as defaultRenderer } from '@lib/renderer'
 import { microtask, type Size } from '@utils'
-import { renderer as defaultRenderer } from './renderer'
 
 export type RenderRequestProps = ImgProps & {
   /** Target render size. Required — enables the image-decoder bypass. */
@@ -69,8 +69,8 @@ export class RenderRequest extends Logger<RenderRequestEventMap> {
    */
   bytesVideoCharged = 0
   readonly frameQueue: FrameQueue
-  /** Scheduling priority — higher renders first */
-  readonly priority: number
+  /** Scheduling priority — higher renders first (see setPriority) */
+  #priority: number
   visible = false
   /** True if request is added to frame queue */
   requested = false
@@ -84,7 +84,7 @@ export class RenderRequest extends Logger<RenderRequestEventMap> {
     super({ name: 'RenderRequest', logLevel: bucket.controller.level })
     this.size = size
     this.bucket = bucket
-    this.priority = priority ?? bucket.priority
+    this.#priority = priority ?? bucket.priority
     this.frameQueue = this.bucket.controller.frameQueue
     this.image = this.bucket.controller.getImage({ size, ...props })
     this.image.registerRequest(this)
@@ -122,6 +122,23 @@ export class RenderRequest extends Logger<RenderRequestEventMap> {
   #onloadStart = (event: ImgEvent<'loadstart'>) => {
     this.emit('loadstart', event)
   }
+
+  /** Scheduling priority — higher renders first */
+  get priority(): number {
+    return this.#priority
+  }
+
+  /**
+   * Changes the scheduling priority on the fly (e.g. a virtual list slot
+   * scrolled into or out of the focus area). Re-sorts the frame queue when
+   * the request is still pending; already-rendered requests are unaffected.
+   */
+  setPriority(priority: number) {
+    if (priority === this.#priority) return
+    this.#priority = priority
+    this.frameQueue.requeue(this)
+  }
+
   /**
    * Queues the request on the frame queue (called once the image size is known).
    */

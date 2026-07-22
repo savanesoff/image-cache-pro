@@ -313,7 +313,7 @@ describe('Controller', () => {
         ram: 1,
         units: 'BYTE',
         // synchronous renderer: completes the warm immediately
-        renderer: ({ done }) => done(),
+        renderer: ({ done }: { done: () => void }) => done(),
       })
       image = controller.getImage({ url: 'https://url.com' })
       image.blob = new Blob()

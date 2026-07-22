@@ -138,13 +138,13 @@ export interface BucketProps {
  */
 export class Bucket extends Logger<BucketEventMap> {
   readonly requests = new Set<RenderRequest>()
-  readonly videoMemory = new Map<string, Set<Img>>()
+  /** Unique images referenced by this bucket's requests, refcounted */
+  readonly #imageRefs = new Map<Img, number>()
   static bucketNumber = 0
   rendered = false
   loading = false
   loaded = false
   loadProgress = 0
-  timeout = 0
   controller: Controller
   locked: boolean
   /** Scheduling priority inherited by this bucket's render requests */
@@ -162,6 +162,10 @@ export class Bucket extends Logger<BucketEventMap> {
 
   registerRequest(request: RenderRequest) {
     this.requests.add(request)
+    this.#imageRefs.set(
+      request.image,
+      (this.#imageRefs.get(request.image) ?? 0) + 1,
+    )
     request.on('loadstart', this.#onRequestLoadStart)
     request.on('progress', this.#onRequestProgress)
     request.on('error', this.#onRequestError)
@@ -170,12 +174,20 @@ export class Bucket extends Logger<BucketEventMap> {
     request.on('clear', this.#onRequestClear)
     this.emit('update', {
       requests: this.requests.size,
-      images: this.getImages().size,
+      images: this.#imageRefs.size,
     })
   }
 
   #onRequestClear = (event: RenderRequestEvent<'clear'>) => {
     this.requests.delete(event.target)
+    const refs = this.#imageRefs.get(event.target.image) ?? 0
+
+    if (refs <= 1) {
+      this.#imageRefs.delete(event.target.image)
+    } else {
+      this.#imageRefs.set(event.target.image, refs - 1)
+    }
+
     event.target.off('loadstart', this.#onRequestLoadStart)
     event.target.off('progress', this.#onRequestProgress)
     event.target.off('error', this.#onRequestError)
@@ -184,7 +196,7 @@ export class Bucket extends Logger<BucketEventMap> {
     event.target.off('clear', this.#onRequestClear)
     this.emit('update', {
       requests: this.requests.size,
-      images: this.getImages().size,
+      images: this.#imageRefs.size,
     })
   }
 
@@ -234,21 +246,19 @@ export class Bucket extends Logger<BucketEventMap> {
    * Instead, a getter should be used to calculate the current progress
    * @param event
    */
-  #onRequestProgress = (event: RenderRequestEvent<'progress'>): void => {
+  #onRequestProgress = (_event: RenderRequestEvent<'progress'>): void => {
     this.loaded = false
     this.loading = true
     let progress = 0
-    const images = this.getImages()
-    for (const image of images) {
+
+    for (const image of this.#imageRefs.keys()) {
       progress += image.progress
     }
-    this.loadProgress = progress / images.size
+
+    this.loadProgress = this.#imageRefs.size
+      ? progress / this.#imageRefs.size
+      : 0
     this.emit('progress', { progress: this.loadProgress })
-    this.log.verbose([
-      `Progress ${this.name}: ${this.loadProgress}`,
-      'event:',
-      event,
-    ])
   }
   /**
    * When all images are loaded, emit the loaded event
@@ -317,8 +327,8 @@ export class Bucket extends Logger<BucketEventMap> {
   getRamBytes(): BucketRamBytes {
     let compressedBytes = 0
     let uncompressedBytes = 0
-    const images = this.getImages()
-    for (const image of images) {
+
+    for (const image of this.#imageRefs.keys()) {
       compressedBytes += image.bytes
       uncompressedBytes += image.bytesUncompressed
     }
@@ -359,10 +369,23 @@ export class Bucket extends Logger<BucketEventMap> {
   }
 
   /**
-   * Get all unique images in the bucket
+   * Get all unique images in the bucket (refcounted — O(images) snapshot)
    */
-  getImages() {
-    return new Set(Array.from(this.requests).map(request => request.image))
+  getImages(): Set<Img> {
+    return new Set(this.#imageRefs.keys())
+  }
+
+  /**
+   * Changes this bucket's scheduling priority on the fly — e.g. the focused
+   * rail changed — and applies it to every request in the bucket (pending
+   * requests re-sort in the frame queue immediately).
+   */
+  setPriority(priority: number) {
+    this.priority = priority
+
+    for (const request of this.requests) {
+      request.setPriority(priority)
+    }
   }
 
   //-----------------------   EVENT METHODS   -----------------------

@@ -83,6 +83,17 @@ export type LoaderProps = LoggerProps & {
   retry?: number
   /** Whether to send credentials with the request */
   withCredentials?: boolean
+  /**
+   * Milliseconds before an in-flight request times out (default 30000;
+   * 0 disables). A dead CDN must never hang a loader slot forever.
+   */
+  timeoutMs?: number
+  /**
+   * Base backoff between retries — the delay grows linearly
+   * (retries × retryDelayMs, default 250ms) so a failing origin is not
+   * hammered. 0 retries immediately.
+   */
+  retryDelayMs?: number
 }
 
 /**
@@ -176,6 +187,11 @@ export class Loader<
    * The number of retries that have been attempted.
    */
   retries = 0
+  /** ms before an in-flight request times out (0 disables) */
+  readonly timeoutMs: number
+  /** base backoff between retries: delay = retries × retryDelayMs */
+  readonly retryDelayMs: number
+  #retryTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
    * Constructs a new Loader instance.
@@ -190,6 +206,8 @@ export class Loader<
     logLevel = 'error',
     name = 'Loader',
     withCredentials = false,
+    timeoutMs = 30_000,
+    retryDelayMs = 250,
   }: LoaderProps) {
     super({
       name,
@@ -198,15 +216,30 @@ export class Loader<
     this.url = url
     this.headers = headers
     this.retry = retry ?? this.retry
+    this.timeoutMs = timeoutMs
+    this.retryDelayMs = retryDelayMs
     this.xhr = new XMLHttpRequest()
     this.xhr.responseType = 'arraybuffer'
     this.xhr.withCredentials = withCredentials
   }
 
   /**
-   * Aborts the loading process.
+   * Aborts the loading process — including a retry waiting on its backoff
+   * timer, in which case the 'abort' event is emitted directly (the XHR is
+   * not in flight, so it cannot emit one itself).
    */
   abort() {
+    if (this.#retryTimer) {
+      clearTimeout(this.#retryTimer)
+      this.#retryTimer = null
+      this.loading = false
+      this.pending = false
+      this.aborted = true
+      Loader.aborted++
+      this.#emitLoader('abort')
+      return
+    }
+
     this.xhr.abort()
   }
 
@@ -223,6 +256,11 @@ export class Loader<
     this.xhr.onabort = this.#onLoadAborted
     this.xhr.ontimeout = this.#onLoadTimeout
     this.xhr.open('GET', this.url, true)
+
+    if (this.timeoutMs > 0) {
+      this.xhr.timeout = this.timeoutMs
+    }
+
     this.#setHeaders()
     this.xhr.send()
   }
@@ -333,14 +371,25 @@ export class Loader<
    * @returns True if the resource is retried, false otherwise.
    */
   #retryLoad() {
-    if (this.retries < this.retry) {
-      this.retries++
-      this.log.info(['Retry', this.url, 'retries', this.retries])
-      this.#emitLoader('retry', { retries: this.retries })
-      this.load()
-      return true
+    if (this.retries >= this.retry) {
+      return false
     }
-    return false
+
+    this.retries++
+    this.log.info(['Retry', this.url, 'retries', this.retries])
+    this.#emitLoader('retry', { retries: this.retries })
+    const delay = this.retries * this.retryDelayMs
+
+    if (delay > 0) {
+      this.#retryTimer = setTimeout(() => {
+        this.#retryTimer = null
+        this.load()
+      }, delay)
+    } else {
+      this.load()
+    }
+
+    return true
   }
 
   /**

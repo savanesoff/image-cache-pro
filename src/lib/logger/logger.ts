@@ -18,6 +18,15 @@
 import { Emitter, type EventMap } from '@lib/emitter'
 
 export type LogLevel = 'none' | 'verbose' | 'info' | 'warn' | 'error'
+
+/** Numeric severity: a message logs when its level <= the logger's level */
+const LOG_PRIORITY: Record<LogLevel, number> = {
+  none: 0,
+  error: 1,
+  warn: 2,
+  info: 3,
+  verbose: 4,
+}
 type DataType = unknown
 type ConsoleType = 'log' | 'info' | 'error' | 'warn'
 type Styles = {
@@ -46,12 +55,6 @@ export class Logger<
     info: 'color: skyblue;',
     warn: 'color: orange;',
     error: 'color: red;',
-  }
-  private readonly levelGates = {
-    verbose: 'verbose',
-    info: 'info, verbose',
-    warn: 'warn, info, verbose',
-    error: 'error, warn, info, verbose',
   }
   /** Log methods */
   readonly log = {
@@ -91,26 +94,31 @@ export class Logger<
     )
   }
 
+  /** True when a message of the given level would be logged */
+  logsFor(level: Exclude<LogLevel, 'none'>): boolean {
+    return LOG_PRIORITY[level] <= LOG_PRIORITY[this.level]
+  }
+
   #verbose(data: DataType[], style = this.styles.log) {
-    if (this.levelGates.verbose.match(this.level)) {
+    if (this.logsFor('verbose')) {
       this.#console('log', style, data)
     }
   }
 
   #info(data: DataType[], style = this.styles.info) {
-    if (this.levelGates.info.match(this.level)) {
+    if (this.logsFor('info')) {
       this.#console('info', style, data)
     }
   }
 
   #warn(data: DataType[], style = this.styles.warn) {
-    if (this.levelGates.warn.match(this.level)) {
+    if (this.logsFor('warn')) {
       this.#console('warn', style, data)
     }
   }
 
   #error(data: DataType[], style = this.styles.error) {
-    if (this.levelGates.error.match(this.level)) {
+    if (this.logsFor('error')) {
       this.#console('error', style, data)
     }
   }

@@ -30,6 +30,7 @@
  */
 import { Logger, type LoggerProps } from '@lib/logger'
 import { type RenderRequest } from '@lib/request'
+import { nextFrame } from '@utils'
 
 export type FrameQueueEventTypes =
   'request-added' | 'request-removed' | 'processed' | 'pause' | 'resume'
@@ -82,15 +83,6 @@ export type FrameQueueProps = LoggerProps & {
 const nowMs = (): number =>
   typeof performance !== 'undefined' ? performance.now() : Date.now()
 
-/** rAF when available (browser), 16ms timeout fallback (SSR/tests) */
-const scheduleFrame = (cb: () => void): void => {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => cb())
-  } else {
-    setTimeout(cb, 16)
-  }
-}
-
 /**
  * FrameQueue drains render requests on animation frames within a byte/ms budget.
  */
@@ -107,6 +99,8 @@ export class FrameQueue extends Logger<FrameQueueEventMap> {
   #paused = false
   /** Pending requests, highest priority first, FIFO within equal priority */
   readonly #queue: RenderRequest[] = []
+  /** O(1) membership for add/remove/requeue (the array stays the order source) */
+  readonly #queued = new Set<RenderRequest>()
   /** Default budget: ~1 MB uncompressed (≈ one 512×512 RGBA texture) and 8 ms per frame */
   static readonly defaultBudget: FrameBudget = {
     bytes: 1_048_576,
@@ -143,23 +137,13 @@ export class FrameQueue extends Logger<FrameQueueEventMap> {
    * Adds a render request to the queue (sorted by priority, FIFO within equal priority).
    */
   add(request: RenderRequest) {
-    if (this.#queue.includes(request)) {
+    if (this.#queued.has(request)) {
       return
     }
 
-    // insert before the first lower-priority entry (stable within equal priority)
-    const index = this.#queue.findIndex(
-      queued => queued.priority < request.priority,
-    )
-
-    if (index === -1) {
-      this.#queue.push(request)
-    } else {
-      this.#queue.splice(index, 0, request)
-    }
-
+    this.#queued.add(request)
+    this.#insertSorted(request)
     this.emit('request-added', { request })
-    this.log.verbose([`added: ${this.#queue.length}`])
     this.#schedule()
   }
 
@@ -167,13 +151,26 @@ export class FrameQueue extends Logger<FrameQueueEventMap> {
    * Removes a pending request from the queue (e.g. on request clear).
    */
   remove(request: RenderRequest) {
-    const index = this.#queue.indexOf(request)
-    if (index === -1) {
+    if (!this.#queued.delete(request)) {
       return
     }
 
-    this.#queue.splice(index, 1)
+    this.#queue.splice(this.#queue.indexOf(request), 1)
     this.emit('request-removed', { request })
+  }
+
+  /**
+   * Re-sorts a pending request after its priority changed (no events).
+   * No-op when the request is not queued — a rendered request keeps its
+   * result; only future scheduling is affected by priority changes.
+   */
+  requeue(request: RenderRequest) {
+    if (!this.#queued.has(request)) {
+      return
+    }
+
+    this.#queue.splice(this.#queue.indexOf(request), 1)
+    this.#insertSorted(request)
   }
 
   /** Halts processing. Queued requests are retained. */
@@ -194,14 +191,28 @@ export class FrameQueue extends Logger<FrameQueueEventMap> {
   /** Clears all pending requests without rendering them. */
   clear() {
     this.#queue.length = 0
+    this.#queued.clear()
   }
 
   //------------------------   PRIVATE METHODS   -------------------------------
 
+  /** Inserts before the first lower-priority entry (stable within equal priority) */
+  #insertSorted(request: RenderRequest) {
+    const index = this.#queue.findIndex(
+      queued => queued.priority < request.priority,
+    )
+
+    if (index === -1) {
+      this.#queue.push(request)
+    } else {
+      this.#queue.splice(index, 0, request)
+    }
+  }
+
   #schedule() {
     if (this.#scheduled || this.#queue.length === 0) return
     this.#scheduled = true
-    scheduleFrame(this.#onFrame)
+    nextFrame(this.#onFrame)
   }
 
   /**
@@ -248,6 +259,7 @@ export class FrameQueue extends Logger<FrameQueueEventMap> {
       if (processed > 0 && nowMs() - start > msBudget) break
 
       this.#queue.shift()
+      this.#queued.delete(request)
       spentBytes += cost
       processed++
       request.render()

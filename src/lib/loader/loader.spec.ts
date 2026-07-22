@@ -281,11 +281,15 @@ describe('Loader', () => {
     let loader: Loader
     const retryEventSpy = vi.fn()
     beforeEach(() => {
+      vi.useFakeTimers()
       loader = new Loader({ url: 'blah', retry: 1 })
       loader.load()
       loader.on('retry', retryEventSpy)
       // induce error event
       loader.xhr?.onerror?.(new ProgressEvent('error'))
+    })
+    afterEach(() => {
+      vi.useRealTimers()
     })
 
     it('should retry loading', () => {
@@ -296,8 +300,53 @@ describe('Loader', () => {
       expect(retryEventSpy).toHaveBeenCalledTimes(1)
     })
 
-    it('should call load() again', () => {
+    it('should call load() again after the backoff delay', () => {
+      expect(XHR.open).toHaveBeenCalledTimes(1)
+      vi.advanceTimersByTime(loader.retryDelayMs)
       expect(XHR.open).toHaveBeenCalledTimes(2)
+    })
+
+    it('should back off linearly (retries × retryDelayMs)', () => {
+      vi.advanceTimersByTime(loader.retryDelayMs)
+      expect(XHR.open).toHaveBeenCalledTimes(2)
+      // second failure → second retry delayed 2 × base
+      loader.xhr?.onerror?.(new ProgressEvent('error'))
+      expect(loader.retries).toBe(1) // retry budget exhausted
+    })
+
+    it('should cancel a pending retry on abort and emit "abort"', () => {
+      const abortSpy = vi.fn()
+      loader.on('abort', abortSpy)
+      loader.abort()
+      vi.advanceTimersByTime(10 * loader.retryDelayMs)
+      expect(XHR.open).toHaveBeenCalledTimes(1) // no relaunch
+      expect(abortSpy).toHaveBeenCalledTimes(1)
+      expect(loader.aborted).toBe(true)
+      expect(loader.isLoading()).toBe(false)
+    })
+  })
+
+  describe('retry with zero backoff', () => {
+    it('should relaunch synchronously when retryDelayMs is 0', () => {
+      const loader = new Loader({ url: 'blah', retry: 1, retryDelayMs: 0 })
+      loader.load()
+      loader.on('error', () => null)
+      loader.xhr?.onerror?.(new ProgressEvent('error'))
+      expect(XHR.open).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('timeoutMs', () => {
+    it('should arm the XHR timeout on load', () => {
+      const loader = new Loader({ url: 'blah', timeoutMs: 5000 })
+      loader.load()
+      expect(loader.xhr.timeout).toBe(5000)
+    })
+
+    it('should leave the XHR timeout unarmed when 0', () => {
+      const loader = new Loader({ url: 'blah', timeoutMs: 0 })
+      loader.load()
+      expect(loader.xhr.timeout).toBe(0)
     })
   })
 
@@ -305,7 +354,7 @@ describe('Loader', () => {
     let loader: Loader
     const retryEventSpy = vi.fn()
     beforeEach(() => {
-      loader = new Loader({ url: 'blah', retry: 1 })
+      loader = new Loader({ url: 'blah', retry: 1, retryDelayMs: 0 })
       loader.load()
       loader.on('retry', retryEventSpy)
       // induce timeout event

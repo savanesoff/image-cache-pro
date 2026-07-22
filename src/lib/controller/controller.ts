@@ -21,7 +21,8 @@ import { Img, type ImgProps, type ImgEvent } from '@lib/image'
 import { type LogLevel, Logger } from '@lib/logger'
 import { Memory } from '@lib/memory'
 import { Network } from '@lib/network'
-import { type RenderRequest, type Renderer } from '@lib/request'
+import { type Renderer } from '@lib/renderer'
+import { type RenderRequest } from '@lib/request'
 import { type UnitsType } from '@utils'
 
 export type ControllerEventTypes =

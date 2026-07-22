@@ -403,6 +403,57 @@ describe('Bucket', () => {
     })
   })
 
+  describe('setPriority', () => {
+    it('should apply the new priority to every request in the bucket', () => {
+      const bucket = createBucket()
+      const first = createRequest()
+      const second = createRequest()
+      first.setPriority = vi.fn()
+      second.setPriority = vi.fn()
+      bucket.registerRequest(first)
+      bucket.registerRequest(second)
+
+      bucket.setPriority(5)
+
+      expect(bucket.priority).toBe(5)
+      expect(first.setPriority).toHaveBeenCalledWith(5)
+      expect(second.setPriority).toHaveBeenCalledWith(5)
+    })
+  })
+
+  describe('image refcounting', () => {
+    it('should count unique images across requests', () => {
+      const bucket = createBucket()
+      const shared = createImage({ url: 'shared' })
+      const first = createRequest()
+      const second = createRequest()
+      first.image = shared
+      second.image = shared
+      bucket.registerRequest(first)
+      bucket.registerRequest(second)
+      expect(bucket.getImages().size).toBe(1)
+    })
+
+    it('should keep the image until the last request referencing it clears', () => {
+      const listenersA = {} as Listeners
+      const listenersB = {} as Listeners
+      const bucket = createBucket()
+      const shared = createImage({ url: 'shared' })
+      const first = createRequest({ listeners: listenersA })
+      const second = createRequest({ listeners: listenersB })
+      first.image = shared
+      second.image = shared
+      bucket.registerRequest(first)
+      bucket.registerRequest(second)
+
+      listenersA['clear']({ type: 'clear', target: first })
+      expect(bucket.getImages().size).toBe(1)
+
+      listenersB['clear']({ type: 'clear', target: second })
+      expect(bucket.getImages().size).toBe(0)
+    })
+  })
+
   describe('request clear unregisters from bucket', () => {
     it('should remove the request from the bucket on clear event', () => {
       const listeners = {} as Listeners

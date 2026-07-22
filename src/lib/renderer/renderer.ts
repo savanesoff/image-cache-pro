@@ -23,7 +23,8 @@
  * calls the renderer once per request; the renderer decides how the on-screen
  * paint is produced and MUST call `done()` exactly once when finished.
  */
-import { type RenderRequest } from '@lib/request/index.js'
+import { type RenderRequest } from '@lib/request'
+import { nextFrame } from '@utils'
 
 /** Context handed to a renderer for a single warm/upload */
 export type RenderContext = {
@@ -35,14 +36,6 @@ export type RenderContext = {
 
 /** Injectable render strategy. See module docs: B2 (default) vs B1 (reveal). */
 export type Renderer = (context: RenderContext) => void
-
-const nextFrame = (cb: () => void): void => {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => cb())
-  } else {
-    setTimeout(cb, 16)
-  }
-}
 
 let prewarmLayer: HTMLElement | null = null
 

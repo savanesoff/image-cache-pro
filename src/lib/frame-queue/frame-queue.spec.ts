@@ -273,6 +273,50 @@ describe('FrameQueue', () => {
     })
   })
 
+  describe('requeue (dynamic priority)', () => {
+    it('should re-sort a pending request after its priority changes', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 1, ms: 1000 } })
+      const first = createRequest({ priority: 0, bytesUncompressed: 100 })
+      const second = createRequest({ priority: 0, bytesUncompressed: 100 })
+      queue.add(first)
+      queue.add(second)
+
+      // bump the later request above the earlier one
+      ;(second as { priority: number }).priority = 5
+      queue.requeue(second)
+
+      tickFrame()
+      expect(second.render).toHaveBeenCalledTimes(1)
+      expect(first.render).not.toHaveBeenCalled()
+    })
+
+    it('should ignore requeue for requests that are not queued', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      expect(() => queue.requeue(request)).not.toThrow()
+      expect(queue.size).toBe(0)
+    })
+  })
+
+  describe('on-the-go additions', () => {
+    it('should accept new requests while draining and process them next frame', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 1, ms: 1000 } })
+      const late = createRequest({ bytesUncompressed: 100 })
+      const first = createRequest({ bytesUncompressed: 100 })
+      vi.mocked(first.render).mockImplementation(() => {
+        queue.add(late) // a virtual list adding work mid-frame
+      })
+      queue.add(first)
+
+      tickFrame()
+      expect(first.render).toHaveBeenCalledTimes(1)
+      expect(late.render).not.toHaveBeenCalled()
+
+      tickFrame()
+      expect(late.render).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('clear', () => {
     it('should drop all pending requests', () => {
       const queue = new FrameQueue({})

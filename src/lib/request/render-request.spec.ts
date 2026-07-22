@@ -250,6 +250,29 @@ describe('RenderRequest', () => {
     })
   })
 
+  describe('setPriority', () => {
+    it('should default to the bucket priority', () => {
+      const bucket = createBucket()
+      bucket.priority = 7
+      const request = createRequest({ bucket })
+      expect(request.priority).toBe(7)
+    })
+
+    it('should requeue on the frame queue when the priority changes', () => {
+      const request = createRequest()
+      request.setPriority(9)
+      expect(request.priority).toBe(9)
+      expect(request.frameQueue.requeue).toHaveBeenCalledWith(request)
+    })
+
+    it('should be a no-op when the priority is unchanged', () => {
+      const request = createRequest()
+      const initial = request.priority
+      request.setPriority(initial)
+      expect(request.frameQueue.requeue).not.toHaveBeenCalled()
+    })
+  })
+
   describe('isLocked', () => {
     let request: RenderRequest
     beforeEach(() => {
