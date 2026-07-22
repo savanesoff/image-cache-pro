@@ -239,6 +239,90 @@ describe('OOM: video memory pressure', () => {
   })
 })
 
+describe('runtime budget changes (setRamBudget / setVideoBudget)', () => {
+  it('shrinking the video budget evicts unlocked warms immediately', () => {
+    const controller = createController({ video: 4 * CARD_BYTES })
+    const bucket = new Bucket({ controller, name: 'rail' })
+    const overflowSpy = vi.fn()
+    controller.on('video-overflow', overflowSpy)
+
+    const requests = Array.from({ length: 4 }, (_, i) =>
+      createRequest(bucket, i),
+    )
+    settle(controller)
+    expect(controller.video.getUsedSpace().bytes).toBe(4 * CARD_BYTES)
+
+    // e.g. media playback starts: halve the GPU budget for images
+    controller.setVideoBudget(2 * CARD_BYTES)
+
+    expect(controller.video.getUsedSpace().bytes).toBe(2 * CARD_BYTES)
+    expect(requests[0].cleared).toBe(true)
+    expect(requests[1].cleared).toBe(true)
+    expect(requests[3].cleared).toBe(false)
+    expect(overflowSpy).not.toHaveBeenCalled()
+
+    // and back up: new work renders again without pressure
+    controller.setVideoBudget(4 * CARD_BYTES)
+    const extra = createRequest(bucket, 10)
+    settle(controller)
+    expect(extra.rendered).toBe(true)
+    expect(controller.video.getUsedSpace().bytes).toBe(3 * CARD_BYTES)
+  })
+
+  it('emits video-overflow when the shrunken budget cannot be honored', () => {
+    const controller = createController({ video: 2 * CARD_BYTES })
+    const bucket = new Bucket({ controller, name: 'rail' })
+    const overflowSpy = vi.fn()
+    controller.on('video-overflow', overflowSpy)
+
+    const requests = Array.from({ length: 2 }, (_, i) =>
+      createRequest(bucket, i),
+    )
+    settle(controller)
+    requests.forEach(request => (request.visible = true)) // pinned
+
+    controller.setVideoBudget(1 * CARD_BYTES)
+    expect(overflowSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ bytes: CARD_BYTES }),
+    )
+    // pinned warms survived
+    expect(requests.every(request => !request.cleared)).toBe(true)
+  })
+
+  it('shrinking the RAM budget evicts unlocked images immediately', () => {
+    const controller = createController({ ram: 3 * IMAGE_RAM })
+    const bucket = new Bucket({ controller, name: 'rail' })
+
+    Array.from({ length: 3 }, (_, i) => createRequest(bucket, i))
+    settle(controller)
+    expect(controller.cache.size).toBe(3)
+
+    controller.setRamBudget(1 * IMAGE_RAM)
+    expect(controller.ram.getUsedSpace().bytes).toBeLessThanOrEqual(
+      1 * IMAGE_RAM,
+    )
+    expect(controller.cache.size).toBe(1)
+  })
+})
+
+describe('canRender accessor (consumer-owned input gate)', () => {
+  it('is reassignable at runtime through the controller', () => {
+    let busy = true
+    const controller = createController()
+    const bucket = new Bucket({ controller, name: 'rail' })
+    const request = createRequest(bucket, 0)
+
+    controller.canRender = () => !busy
+    pumpNetwork(controller)
+    drainFrames() // gated: idle-polls, renders nothing
+    expect(request.rendered).toBe(false)
+
+    busy = false
+    drainFrames()
+    expect(request.rendered).toBe(true)
+  })
+})
+
 describe('OOM: RAM pressure', () => {
   it('evicts the oldest unlocked image, then reloads it on demand (recovery)', () => {
     // budget fits exactly two images

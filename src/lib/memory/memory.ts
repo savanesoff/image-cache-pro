@@ -90,8 +90,8 @@ export class Memory extends Logger<MemoryEventMap> {
   private bytes = 0
   /** The units of the memory object, e.g. "GB" */
   readonly units: UnitsType
-  /** The size of the memory object */
-  readonly size: number
+  /** The size of the memory object, in units (see setSize) */
+  #size: number
   /** The count of the memory requests to calculate average */
   private count = 0
 
@@ -113,8 +113,30 @@ export class Memory extends Logger<MemoryEventMap> {
       logLevel,
     })
     this.units = units
-    this.size = size
+    this.#size = size
     this.log.info(['Created memory', 'Size:', size, 'Units:', units])
+  }
+
+  /** The size of the memory object, in units */
+  get size(): number {
+    return this.#size
+  }
+
+  /**
+   * Changes the budget at runtime (e.g. shrink image memory while video
+   * plays). Accounting is preserved; the caller decides what to evict when
+   * the new budget overflows.
+   * @returns The remaining bytes — negative when the new size overflows.
+   */
+  setSize(size: number): number {
+    this.#size = size
+    const remainingBytes = this.getBytesSpace()
+    this.emit('update', { overflow: remainingBytes < 0 })
+    this.log.info(
+      [`Resized: ${size} ${this.units}`, this.getStats()],
+      this.styles.info,
+    )
+    return remainingBytes
   }
 
   /**

@@ -4,6 +4,12 @@
 
 Production-hardening pass (Pass 2): versatility, resilience, packaging.
 
+- **Runtime control**: `controller.canRender` is a get/set accessor (the
+  library never attaches input listeners — the consumer's input layer owns
+  the gate, trivially wireable from a React hook), and budgets are live:
+  `setRamBudget()` / `setVideoBudget()` (backed by `Memory.setSize()`)
+  evict immediately on shrink and emit overflow only when nothing can be
+  freed.
 - **Live priorities**: `RenderRequest.setPriority()` and `Bucket.setPriority()`
   re-sort pending work in the frame queue on the fly — focused rails jump the
   queue; virtual lists churn requests through one long-lived bucket.

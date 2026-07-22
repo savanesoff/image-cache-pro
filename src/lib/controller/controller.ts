@@ -158,6 +158,49 @@ export class Controller extends Logger<ControllerEventMap> {
   }
 
   /**
+   * Input-yield gate — the library never attaches input listeners itself;
+   * the consumer's input layer owns this. Reassignable at runtime (e.g. a
+   * React hook wiring it to app state), or use pause()/resume() push-style.
+   */
+  get canRender(): () => boolean {
+    return this.frameQueue.canRender
+  }
+
+  set canRender(predicate: () => boolean) {
+    this.frameQueue.canRender = predicate
+  }
+
+  /**
+   * Changes the RAM budget at runtime. When the new budget overflows,
+   * unlocked images are evicted immediately (oldest first); if it still
+   * overflows, 'ram-overflow' is emitted.
+   */
+  setRamBudget(size: number) {
+    const remainingBytes = this.ram.setSize(size)
+
+    if (remainingBytes < 0 && !this.#requestRam(-remainingBytes)) {
+      this.emit('ram-overflow', { bytes: -remainingBytes })
+    }
+
+    this.emit('update')
+  }
+
+  /**
+   * Changes the video (GPU) memory budget at runtime — e.g. shrink image
+   * budgets while media playback needs the GPU. Evicts unlocked warms
+   * immediately; emits 'video-overflow' if the budget still overflows.
+   */
+  setVideoBudget(size: number) {
+    const remainingBytes = this.video.setSize(size)
+
+    if (remainingBytes < 0 && !this.#requestVideo(-remainingBytes)) {
+      this.emit('video-overflow', { bytes: -remainingBytes })
+    }
+
+    this.emit('update')
+  }
+
+  /**
    * Pauses background warming (frame queue). Wire this to input activity —
    * warming must never compete with navigation.
    */

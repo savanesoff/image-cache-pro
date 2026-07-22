@@ -161,6 +161,32 @@ controller.resume() // on idle
 While gated, the queue idles at one no-op check per frame and drains as soon
 as the gate opens.
 
+The library never attaches input listeners itself — your input layer owns the
+gate, and `canRender` is reassignable at runtime, which makes framework
+wiring trivial:
+
+```ts
+// e.g. a React hook
+useEffect(() => {
+  controller.canRender = () => !isNavigatingRef.current
+}, [controller])
+```
+
+### Runtime budget changes
+
+Budgets are live too — a common TV pattern is shrinking image memory while
+media playback needs the GPU:
+
+```ts
+player.on('play', () => controller.setVideoBudget(toBytes(64, 'MB')))
+player.on('stop', () => controller.setVideoBudget(toBytes(240, 'MB')))
+```
+
+Shrinking a budget evicts unlocked work immediately (visible/locked work
+survives; if the new budget still overflows you get the overflow event).
+Growing a budget simply gives new work more headroom. The per-frame warm
+budget is adjustable as well: `controller.frameQueue.frameBudget.bytes = n`.
+
 ## API
 
 ### `new Controller(props)`
@@ -179,6 +205,7 @@ as the gate opens.
 | `logLevel`    | `'none'…'verbose'`          | `'error'`           | Console logging level                                              |
 
 Methods: `getImage(props)`, `pause()`, `resume()`, `clear()`,
+`setRamBudget(size)`, `setVideoBudget(size)`, `canRender` (get/set),
 `getRequestsStats()`. Events: `ram-overflow`, `video-overflow`,
 `image-added`, `image-removed`, `render-request-added`,
 `render-request-removed`, `update`, `clear`.
@@ -262,8 +289,10 @@ error overlay — see [`demo/index.html`](demo/index.html) and
 The demo drives the real engine over rails of posters with every stat on
 screen (budgets, per-rail progress, queue depth, fps), keyboard/RCU
 navigation, and a `?mode=stampede` baseline so you can feel the difference.
-Useful query params: `rails`, `cards`, `ram`, `video`, `budget`, `hwrank`,
-`img`, `mode`.
+Live knobs: `1/2` halve/double the RAM budget, `3/4` the video budget,
+`5/6` the per-frame warm budget, and `A` adds a whole rail on the fly —
+watch evicted cards dim out as budgets shrink. Useful query params:
+`rails`, `cards`, `ram`, `video`, `budget`, `hwrank`, `img`, `mode`.
 
 ```sh
 pnpm dev            # serve the demo locally

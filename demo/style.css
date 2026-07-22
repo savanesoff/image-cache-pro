@@ -198,6 +198,11 @@ body {
   border-color: #ff7a00;
 }
 
+.card.evicted {
+  border-color: #d64545;
+  opacity: 0.25;
+}
+
 .card-info {
   position: absolute;
   top: 0.3rem;

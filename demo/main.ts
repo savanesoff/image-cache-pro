@@ -148,7 +148,8 @@ const div = (className: string, parent: HTMLElement): HTMLElement => {
   return el
 }
 
-for (let rail = 0; rail < RAILS; rail++) {
+/** Builds the DOM for one rail; rails can be added on the go (see key A) */
+function buildRailUI(rail: number) {
   const railEl = div('rail', railsRoot)
   railEl.style.width = `${railWidth}px`
 
@@ -189,11 +190,57 @@ for (let rail = 0; rail < RAILS; rail++) {
   })
 }
 
+for (let rail = 0; rail < RAILS; rail++) {
+  buildRailUI(rail)
+}
+
 //---------------------------------------------------------------------------
 // Scheduled mode: Controller → Bucket-per-rail → RenderRequest-per-card
 //---------------------------------------------------------------------------
+
+/** Creates the bucket + requests for one (already-built) rail */
+function scheduleRail(rail: number) {
+  const controller = demo.controller
+  if (!controller) return
+
+  const bucket = new Bucket({
+    controller,
+    name: `rail-${rail}`,
+    priority: rail === 0 ? 1 : 0,
+  })
+  railUIs[rail].bucket = bucket
+
+  for (let card = 0; card < CARDS; card++) {
+    const cell = cells[rail][card]
+    const request = new RenderRequest({
+      bucket,
+      url: imageUrl(rail, card),
+      size: CARD_SIZE, // decoder bypass: dimensions are known
+    })
+    railUIs[rail].requests.push(request)
+    request.on('rendered', event => {
+      const src = request.image.element.src || event.url || ''
+      cell.element.style.backgroundImage = `url("${src}")`
+      cell.element.className = 'card ready'
+      demo.rendered++
+      demo.renderOrder.push(`r${rail}c${card}`)
+      refreshFocusClasses()
+    })
+    request.on('error', event => {
+      demo.errors.push(`r${rail}c${card}: ${event.statusText}`)
+    })
+    request.on('clear', () => {
+      // evicted (or recycled): show it — the texture charge is gone
+      if (cell.element.className.indexOf('ready') !== -1) {
+        cell.element.className = 'card evicted'
+        cell.element.style.backgroundImage = ''
+      }
+    })
+  }
+}
+
 function startScheduled() {
-  const controller = new Controller({
+  demo.controller = new Controller({
     ram: num('ram', 400),
     video: num('video', 240),
     units: 'MB',
@@ -205,36 +252,36 @@ function startScheduled() {
     canRender,
     logLevel: 'error',
   })
-  demo.controller = controller
 
   for (let rail = 0; rail < RAILS; rail++) {
-    const bucket = new Bucket({
-      controller,
-      name: `rail-${rail}`,
-      priority: rail === 0 ? 1 : 0,
-    })
-    railUIs[rail].bucket = bucket
+    scheduleRail(rail)
+  }
+}
 
-    for (let card = 0; card < CARDS; card++) {
-      const cell = cells[rail][card]
-      const request = new RenderRequest({
-        bucket,
-        url: imageUrl(rail, card),
-        size: CARD_SIZE, // decoder bypass: dimensions are known
-      })
-      railUIs[rail].requests.push(request)
-      request.on('rendered', event => {
-        const src = request.image.element.src || event.url || ''
-        cell.element.style.backgroundImage = `url("${src}")`
-        cell.element.className = 'card ready'
-        demo.rendered++
-        demo.renderOrder.push(`r${rail}c${card}`)
-        refreshFocusClasses()
-      })
-      request.on('error', event => {
-        demo.errors.push(`r${rail}c${card}: ${event.statusText}`)
-      })
-    }
+//---------------------------------------------------------------------------
+// Knobs: live budget changes + on-the-go rail additions (watch eviction)
+//---------------------------------------------------------------------------
+function addRail() {
+  if (!demo.controller || MODE_STAMPEDE) return
+  const rail = railUIs.length
+  buildRailUI(rail)
+  scheduleRail(rail)
+  demo.total = railUIs.length * CARDS
+}
+
+/** Halve/double a budget live — the engine evicts (or breathes) immediately */
+function nudgeBudget(target: 'ram' | 'video' | 'frame', up: boolean) {
+  const controller = demo.controller
+  if (!controller) return
+  const factor = up ? 2 : 0.5
+
+  if (target === 'ram') {
+    controller.setRamBudget(Math.max(1, controller.ram.size * factor))
+  } else if (target === 'video') {
+    controller.setVideoBudget(Math.max(1, controller.video.size * factor))
+  } else {
+    const budget = controller.frameQueue.frameBudget
+    budget.bytes = Math.max(1024, budget.bytes * factor)
   }
 }
 
@@ -363,6 +410,13 @@ const KEY = {
   s: 83,
   p: 80,
   c: 67,
+  a: 65,
+  one: 49,
+  two: 50,
+  three: 51,
+  four: 52,
+  five: 53,
+  six: 54,
 }
 
 function onKeyDown(event: KeyboardEvent) {
@@ -403,6 +457,27 @@ function onKeyDown(event: KeyboardEvent) {
     case KEY.c:
       demo.controller?.clear()
       location.reload()
+      return
+    case KEY.a:
+      addRail()
+      return
+    case KEY.one:
+      nudgeBudget('ram', false)
+      return
+    case KEY.two:
+      nudgeBudget('ram', true)
+      return
+    case KEY.three:
+      nudgeBudget('video', false)
+      return
+    case KEY.four:
+      nudgeBudget('video', true)
+      return
+    case KEY.five:
+      nudgeBudget('frame', false)
+      return
+    case KEY.six:
+      nudgeBudget('frame', true)
       return
     default:
       return
