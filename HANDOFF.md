@@ -28,7 +28,7 @@ GPU uploads — with bounded RAM/GPU budgets and eviction.
 
 1. **GPU upload only happens for in-viewport, actually-painted pixels on Cobalt.**
    Cobalt does not rasterize/upload off-screen or non-painting elements. The existing
-   `renderer.ts` works *only because* it appends the warm div **inside the viewport**
+   `renderer.ts` works _only because_ it appends the warm div **inside the viewport**
    at **`opacity: 0.001`** (non-zero → painted). Any change that moves warming
    off-screen, to `display:none`, `visibility:hidden`, `opacity:0`, or a zero-size box
    **breaks GPU pre-warming with no error**. This must be an explicit, tested,
@@ -50,12 +50,12 @@ GPU uploads — with bounded RAM/GPU budgets and eviction.
 
 Measured on-box (documented in onyx-core react-kit CLAUDE.md):
 
-| Mechanism | Cobalt timing |
-| --- | --- |
+| Mechanism                                   | Cobalt timing                        |
+| ------------------------------------------- | ------------------------------------ |
 | `queueMicrotask` / `Promise.resolve().then` | ~5 ms (queueMicrotask is polyfilled) |
-| `setTimeout(0)` | **~41 ms** |
-| `requestAnimationFrame` | next vsync, ~16 ms (60 Hz) |
-| `MessageChannel` | **absent** |
+| `setTimeout(0)`                             | **~41 ms**                           |
+| `requestAnimationFrame`                     | next vsync, ~16 ms (60 Hz)           |
+| `MessageChannel`                            | **absent**                           |
 
 Implication: the current `FrameQueue` paces with `setTimeout(renderTime)`. Small
 `renderTime`s floor at ~41 ms → ~24 warms/sec max, and the pacing math
@@ -97,6 +97,7 @@ B2 (hidden div) without forking the core.
 ## 4. Work items (the refactor passes)
 
 ### Pass 1 — correctness, pacing, priority, API, opt-in
+
 - **Pacing engine rewrite:** rAF-driven FrameQueue with a configurable **per-frame
   budget** (max ms or max uncompressed bytes per frame). Replace `setTimeout`-sleep
   pacing. Expose `hwRank` still, but as a budget scalar, not a sleep multiplier.
@@ -105,7 +106,7 @@ B2 (hidden div) without forking the core.
   resumes on idle. This is what makes nav stay smooth.
 - **Priority lanes:** visible/focused bucket warms first; off-screen buckets low
   priority; support preemption (a newly-focused rail jumps the queue). Today it's FIFO
-  + bucket lock — add explicit priority.
+  - bucket lock — add explicit priority.
 - **Decoder bypass:** when the caller provides `size`, skip the custom header decoders
   entirely (BE gives solid sizes in our case). Make the `src/utils/image-decoder/*`
   suite **optional / tree-shakeable / lazy** — not on the default path. Big
@@ -119,6 +120,7 @@ B2 (hidden div) without forking the core.
   `RenderRequest`) and their option names; treat as semver-public.
 
 ### Pass 2 — memory, resilience, benchmarks, docs, publish
+
 - **Memory accounting audit:** RAM (compressed + uncompressed) and GPU (video) budgets;
   `gpuFullMode`/`gpuDataFull` semantics; overflow → eviction correctness; lock
   semantics (visible/locked never evicted); verify no double-count on multi-request
@@ -160,8 +162,9 @@ that binding is thin.
 ---
 
 ## 6. Explicit non-goals for this session
+
 - No react-kit changes, no app changes, no React binding code (that's the next
-  session; only make the core *bindable*).
+  session; only make the core _bindable_).
 - Don't keep the Preact-specific `image-cache-preact` assumptions in the core.
 - Don't add features beyond the four invariants + the pacing/priority/memory work
   unless they directly serve the STB blit goal.
@@ -169,11 +172,12 @@ that binding is thin.
 ---
 
 ## 7. Verification plan (do this on a real box as you go)
+
 1. **Cross-node GPU texture reuse probe (decides B1 vs B2):** warm image via hidden
-   in-viewport `opacity:0.001` div at size S; remove it; paint a *different* node with
+   in-viewport `opacity:0.001` div at size S; remove it; paint a _different_ node with
    the same URL+size; measure render-thread CPU on that paint. Flat → B2 reuse works.
    Spikes → reuse doesn't hold; use B1 (reveal-stagger the real node).
-2. **Off-screen negative control:** confirm §1.1 — warm the same div *off-screen* and
+2. **Off-screen negative control:** confirm §1.1 — warm the same div _off-screen_ and
    verify it does NOT reduce the later paint cost (proves the in-viewport invariant).
 3. **Stampede vs staggered:** simulate a rail scroll-in of N posters; compare
    Cobalt render-thread CPU / dropped frames: all-at-once vs scheduler-staggered.
@@ -189,10 +193,42 @@ avoid devtools :9227 — it freezes the box) for CPU numbers; the fps overlay fo
 ---
 
 ## 8. Open decisions for whoever picks this up
+
 - **B1 vs B2** as the default renderer (probe #1 decides; ship both, default to the
   robust one).
 - **Package name/scope** for publish (keep `image-cache-pro` or scope it). The React
-  binding + react-kit consumption is the *next* session; just make sure the published
+  binding + react-kit consumption is the _next_ session; just make sure the published
   core is clean to depend on.
 - **`hwRank` source** — static config vs a runtime calibration probe (measure a test
   blit at boot and derive the budget). Nice-to-have, not required for v1.
+
+---
+
+## 9. Status (updated 2026-07-22 — Pass 1 complete)
+
+**Dev env** — deps at latest (TS 6.0.3¹, ESLint 10 flat + typescript-eslint 8
+type-checked, Vite 8, Vitest 4, pnpm 11), `.vscode/` tasks (statusbar
+Build/Lint/Test/TS/Format via `actboy168.tasks`), CI runs lint + type-check +
+full test suite. `tspc`/`ts-patch` replaced by `vite-plugin-dts`.
+¹ TS 7 (Go) blocked by typescript-eslint peer `<6.1.0`.
+
+**Pass 1 — done:**
+
+- rAF FrameQueue with per-frame `{bytes, ms}` budget (hwRank = budget scalar),
+  priority lanes (bucket/request `priority`), `canRender` gate +
+  `controller.pause()/resume()`.
+- Injectable `Renderer` (`{ target, done }`); default B2 pre-warm uses one
+  fixed in-viewport layer + blob URL; §1.1 invariant documented in code.
+- Decoder bypass when `size` supplied; decoder suite lazily imported
+  (separate chunk, off the default path).
+- Strict zero-dep `Emitter` (typed event maps end to end); `events` + `tslib`
+  deps removed.
+- Teardown/accounting fixes: blob-URL revoke bug, XHR abort on clear,
+  frame-queue removal on request clear, per-texture video charges (no drift),
+  symmetric RAM accounting.
+- Full spec suite repaired/rewritten — 286 tests, all green; `pnpm test` runs
+  everything (was: network/ only).
+
+**Pass 2 — remaining:** loader retry/backoff + xhr timeout, README rewrite,
+on-box verification plan (§7 probes — B1 vs B2 decision), benchmarks,
+`hwRank` calibration probe (optional).

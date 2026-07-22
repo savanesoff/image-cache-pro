@@ -1,7 +1,7 @@
 /**
  * PNG Image Decoder that reads the dimensions of a PNG image.
  */
-import { Size } from './image-data'
+import { type Size } from './image-data'
 
 /**
  * Get the dimensions of a PNG image.

@@ -1,189 +1,281 @@
 /**
- * The `FrameQueue` class provides a queue that processes RenderRequests,
- * by rendering each image separately.
- * It extends the `Logger` class, inheriting its logging capabilities.
+ * The `FrameQueue` serialises GPU texture-upload work ("warms") so the
+ * hardware processes a bounded amount of image data per animation frame,
+ * off the interaction critical path.
  *
- * The `FrameQueue` class maintains a queue of `RenderRequest` instances,
- * each representing a request to render an image.
- * It also maintains a `hwRank` property, which represents the hardware rank number between 0 and 1,
- * where 1 is the fastest.
+ * ## Why rAF and not setTimeout (Cobalt scheduling reality)
  *
- * The `FrameQueue` class provides an `add` method to add a `RenderRequest` to the queue.
+ * Measured on-box (Cobalt, Chrome-88-class STB browser):
+ * - `setTimeout(0)` floors at ~41 ms → a setTimeout-paced queue maxes out at
+ *   ~24 warms/sec and cannot express "N per frame".
+ * - `requestAnimationFrame` fires on the next vsync (~16 ms @60 Hz) — the only
+ *   primitive that aligns work with actual frames.
+ * - `MessageChannel` is absent; `queueMicrotask` is polyfilled (~5 ms).
  *
- * Usage:
+ * The queue therefore drains on rAF ticks with a configurable per-frame
+ * budget (uncompressed bytes and/or ms), scaled by `hwRank`.
  *
- * const frameQueue = new FrameQueue({
- *   name: "My Frame Queue",
- *   logLevel: "verbose",
- *   hwRank: 0.8,
- *   renderer: (props) => {
- *     console.log(`Rendering frame for request ${props.request.id} with render time ${props.renderTime}`);
- *   },
- * });
- * const renderRequest = new RenderRequest({ id: "request1", priority: 1 });
- * frameQueue.add(renderRequest); // Add a render request to the queue
+ * ## Yielding to input
+ *
+ * Warming is background work and must never jank navigation. The consumer
+ * wires `canRender` to its input/animation state (e.g. "no key held, no
+ * scroll animation in flight"). While the gate returns false (or the queue is
+ * `pause()`d) the queue idles, re-checking once per frame.
+ *
+ * ## Priority
+ *
+ * Requests are drained highest-priority-first (FIFO within the same
+ * priority). A newly-focused rail with a higher priority therefore jumps the
+ * queue on the very next frame — no explicit preemption call needed.
  */
-import { Logger, LoggerProps } from '@lib/logger'
-import { RenderRequest } from '@lib/request'
+import { Logger, type LoggerProps } from '@lib/logger'
+import { type RenderRequest } from '@lib/request'
 
-export type FrameQueueEventTypes = 'rendered' | 'request-added' | 'processed'
+export type FrameQueueEventTypes =
+  'request-added' | 'request-removed' | 'processed' | 'pause' | 'resume'
+
 /** FrameQueue event */
 export type FrameQueueEvent<T extends FrameQueueEventTypes> = {
   /** The type of the event */
   type: T
   /** The target of the event */
   target: FrameQueue
-} & (T extends 'request-added' ? { request: RenderRequest } : unknown)
+} & (T extends 'request-added' | 'request-removed'
+  ? { request: RenderRequest }
+  : unknown) &
+  (T extends 'processed' ? { processed: number; pending: number } : unknown)
+
 /** FrameQueue event handler */
 export type FrameQueueEventHandler<T extends FrameQueueEventTypes> = (
   event: FrameQueueEvent<T>,
 ) => void
 
-export type RendererProps = {
-  /** The estimated render time for the request depending on the image size and HW rank */
-  renderTime: number
+/** Strict event map for the FrameQueue (see Emitter) */
+export type FrameQueueEventMap = {
+  [K in FrameQueueEventTypes]: FrameQueueEvent<K>
 }
 
-/** Render function */
-export type RenderFunction = (props: RendererProps) => void
+/** Per-frame work budget. Both limits apply; at least one request is always processed per frame. */
+export type FrameBudget = {
+  /** Max estimated uncompressed bytes handed to the GPU per frame */
+  bytes: number
+  /** Max ms the queue spends dispatching per frame (guard rail) */
+  ms: number
+}
+
+/** Gate the consumer wires to input/platform state. Return false to pause warming for the frame. */
+export type CanRenderPredicate = () => boolean
 
 /** FrameQueue properties */
 export type FrameQueueProps = LoggerProps & {
-  /** The hardware rank number between 0 and 1, where 1 is the fastest */
+  /**
+   * The hardware rank number between 0 and 1, where 1 is the fastest.
+   * Scales the per-frame budget (NOT a sleep multiplier).
+   */
   hwRank?: number
+  /** Per-frame budget overrides */
+  frameBudget?: Partial<FrameBudget>
+  /** Input-yield gate: return false while the app is busy (key held, scroll animating) */
+  canRender?: CanRenderPredicate
+}
+
+const nowMs = (): number =>
+  typeof performance !== 'undefined' ? performance.now() : Date.now()
+
+/** rAF when available (browser), 16ms timeout fallback (SSR/tests) */
+const scheduleFrame = (cb: () => void): void => {
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => cb())
+  } else {
+    setTimeout(cb, 16)
+  }
 }
 
 /**
- * FrameQueue is a queue that processes callbacks in the next animation frame.
+ * FrameQueue drains render requests on animation frames within a byte/ms budget.
  */
-export class FrameQueue extends Logger {
-  /** Flag to indicate if the queue is scheduled */
-  private scheduled = false
-  /** Hardware rank number between 0 and 1, where 1 is the fastest */
+export class FrameQueue extends Logger<FrameQueueEventMap> {
+  /** Hardware rank number between 0 and 1, where 1 is the fastest. Scales the budget. */
   readonly hwRank: number
-  /** Set of render requests */
-  readonly queue = new Set<RenderRequest>()
-  /**
-   * The number of bytes per frame ratio estimate.
-   * This value determines how fast a platform can render a frame based on
-   * the number of bytes in the image.
-   * Where bytes refers to the uncompressed image size.
-   * and can be adjusted based on the platform's performance.
-   */
-  static readonly bytesPerFrameRatio = 500
+  /** Base per-frame budget (before hwRank scaling) */
+  readonly frameBudget: FrameBudget
+  /** Input-yield gate; reassignable at runtime */
+  canRender: CanRenderPredicate
+  /** True while a frame callback is scheduled */
+  #scheduled = false
+  /** True while pause()d */
+  #paused = false
+  /** Pending requests, highest priority first, FIFO within equal priority */
+  readonly #queue: RenderRequest[] = []
+  /** Default budget: ~1 MB uncompressed (≈ one 512×512 RGBA texture) and 8 ms per frame */
+  static readonly defaultBudget: FrameBudget = {
+    bytes: 1_048_576,
+    ms: 8,
+  }
 
   constructor({
     name = 'Frame queue',
-    logLevel = 'verbose',
+    logLevel = 'error',
     hwRank = 1,
+    frameBudget,
+    canRender,
   }: FrameQueueProps) {
     super({
       name,
       logLevel,
     })
-    this.hwRank = hwRank
-    this.log.info([`hwRank: ${this.hwRank}`])
+    this.hwRank = Math.min(1, Math.max(0, hwRank))
+    this.frameBudget = { ...FrameQueue.defaultBudget, ...frameBudget }
+    this.canRender = canRender ?? (() => true)
+  }
+
+  /** Number of pending requests */
+  get size(): number {
+    return this.#queue.length
+  }
+
+  /** True while pause()d */
+  get paused(): boolean {
+    return this.#paused
   }
 
   /**
-   * Adds a render request to the queue.
-   * @param request
+   * Adds a render request to the queue (sorted by priority, FIFO within equal priority).
    */
   add(request: RenderRequest) {
-    this.queue.add(request)
+    if (this.#queue.includes(request)) {
+      return
+    }
+
+    // insert before the first lower-priority entry (stable within equal priority)
+    const index = this.#queue.findIndex(
+      queued => queued.priority < request.priority,
+    )
+
+    if (index === -1) {
+      this.#queue.push(request)
+    } else {
+      this.#queue.splice(index, 0, request)
+    }
+
     this.emit('request-added', { request })
-    this.log.info([`added: ${this.queue.size}`])
-    this.#next()
+    this.log.verbose([`added: ${this.#queue.length}`])
+    this.#schedule()
+  }
+
+  /**
+   * Removes a pending request from the queue (e.g. on request clear).
+   */
+  remove(request: RenderRequest) {
+    const index = this.#queue.indexOf(request)
+    if (index === -1) {
+      return
+    }
+
+    this.#queue.splice(index, 1)
+    this.emit('request-removed', { request })
+  }
+
+  /** Halts processing. Queued requests are retained. */
+  pause() {
+    if (this.#paused) return
+    this.#paused = true
+    this.emit('pause')
+  }
+
+  /** Resumes processing on the next frame. */
+  resume() {
+    if (!this.#paused) return
+    this.#paused = false
+    this.emit('resume')
+    this.#schedule()
+  }
+
+  /** Clears all pending requests without rendering them. */
+  clear() {
+    this.#queue.length = 0
   }
 
   //------------------------   PRIVATE METHODS   -------------------------------
 
-  /**
-   * Gets the render time for a request based on the image size and hardware rank.
-   * @param request
-   */
-  #getRenderTime(request: RenderRequest) {
-    const time = request.image.isDecoded(request.size)
-      ? 0
-      : (request.image.bytesUncompressed / FrameQueue.bytesPerFrameRatio) *
-        (1 - this.hwRank)
-    return time
+  #schedule() {
+    if (this.#scheduled || this.#queue.length === 0) return
+    this.#scheduled = true
+    scheduleFrame(this.#onFrame)
   }
 
   /**
-   * Processes the next render request in the queue.
-   * Waits for the current request to be processed before processing the next one.
+   * Estimated GPU upload cost of a request in uncompressed bytes.
+   * Already-decoded sizes cost ~0 (texture cache hit).
    */
-  #next() {
-    if (this.scheduled) return
-    this.scheduled = true
-    // get the request in the order they were added
-    const request = this.queue.values().next().value as
-      | RenderRequest
-      | undefined
-    if (!request) {
-      this.scheduled = false
+  #getCost(request: RenderRequest): number {
+    return request.image.isDecoded(request.size)
+      ? 0
+      : request.image.bytesUncompressed || request.bytesVideo
+  }
+
+  #onFrame = () => {
+    this.#scheduled = false
+
+    if (this.#queue.length === 0) {
       return
     }
 
-    const renderTime = this.#getRenderTime(request)
+    if (this.#paused) {
+      // stay idle until resume() reschedules
+      return
+    }
 
-    this.log.info([
-      `processing: ${this.queue.size}`,
-      `renderTime: ${renderTime}`,
+    if (!this.canRender()) {
+      // input-yield: idle-poll once per frame while the app is busy
+      this.#schedule()
+      return
+    }
+
+    const scale = Math.max(0.1, this.hwRank)
+    const byteBudget = this.frameBudget.bytes * scale
+    const msBudget = this.frameBudget.ms * scale
+    const start = nowMs()
+    let spentBytes = 0
+    let processed = 0
+
+    while (this.#queue.length > 0) {
+      const request = this.#queue[0]
+      const cost = this.#getCost(request)
+
+      // always process at least one request per frame to guarantee progress
+      if (processed > 0 && spentBytes + cost > byteBudget) break
+      if (processed > 0 && nowMs() - start > msBudget) break
+
+      this.#queue.shift()
+      spentBytes += cost
+      processed++
+      request.render()
+    }
+
+    this.log.verbose([
+      `processed: ${processed}`,
+      `bytes: ${spentBytes}`,
+      `pending: ${this.#queue.length}`,
     ])
-    this.queue.delete(request)
-    request.render({ renderTime })
-
-    setTimeout(() => {
-      this.scheduled = false
-      this.#next()
-      this.log.verbose([
-        'processed request',
-        request.image.url,
-        `queue size: ${this.queue.size}`,
-      ])
-    }, renderTime)
+    this.emit('processed', { processed, pending: this.#queue.length })
+    this.#schedule()
   }
 
   //------------------------   EVENT EMITTER METHODS   -------------------------
 
   /**
-   * Adds an event listener for the specified event type.
-   * @param type - The type of the event to listen for.
-   * @param handler - The event handler function.
-   * @returns The current instance of the FrameQueue class.
-   */
-  on<T extends FrameQueueEventTypes>(
-    type: T,
-    handler: FrameQueueEventHandler<T>,
-  ): this {
-    return super.on(type, handler)
-  }
-
-  /**
-   * Removes an event listener for the specified event type.
-   * @param type - The type of the event to remove the listener for.
-   * @param handler - The event handler function to remove.
-   * @returns The current instance of the FrameQueue class.
-   */
-  off<T extends FrameQueueEventTypes>(
-    type: T,
-    handler: FrameQueueEventHandler<T>,
-  ): this {
-    return super.off(type, handler)
-  }
-
-  /**
-   * Emits an event of the specified type with the specified data.
-   * @param type - The type of the event to emit.
-   * @param data - The data to emit with the event.
-   * @returns True if the event was emitted successfully, false otherwise.
+   * Emits an event, injecting `type` and `target`.
+   * `on`/`off` are inherited fully-typed from the strict Emitter base.
    */
   emit<T extends FrameQueueEventTypes>(
     type: T,
     data?: Omit<FrameQueueEvent<T>, 'target' | 'type'>,
   ): boolean {
-    return super.emit(type, { ...data, type, target: this })
+    return this.dispatch(type, {
+      ...data,
+      type,
+      target: this,
+    })
   }
 }

@@ -62,12 +62,24 @@ describe('Controller', () => {
       expect(FrameQueue).toHaveBeenCalledWith({
         logLevel: 'error',
         hwRank: 1,
-        renderer: undefined,
+        frameBudget: undefined,
+        canRender: undefined,
+      })
+    })
+    it('should pass frameBudget and canRender to the FrameQueue', () => {
+      const canRender = () => true
+      const frameBudget = { bytes: 5000 }
+      new Controller({ frameBudget, canRender })
+      expect(FrameQueue).toHaveBeenCalledWith({
+        logLevel: 'error',
+        hwRank: 1,
+        frameBudget,
+        canRender,
       })
     })
     it('should create Network instance with default args', () => {
       new Controller({})
-      expect(Network).toHaveBeenCalledWith({ loaders: 6 })
+      expect(Network).toHaveBeenCalledWith({ loaders: 6, logLevel: 'error' })
     })
 
     it('should have empty cache', () => {
@@ -82,7 +94,7 @@ describe('Controller', () => {
       controller = new Controller({})
     })
 
-    it('should create new image ', () => {
+    it('should create new image', () => {
       const props = { url: 'https://url.com' }
       const image = controller.getImage(props)
       expect(image).toBeInstanceOf(Img)
@@ -96,7 +108,7 @@ describe('Controller', () => {
       expect(image).toBe(image2)
     })
 
-    it('it should return image from cache if url already in cache', () => {
+    it('should return image from cache if url already in cache', () => {
       const image = controller.getImage({ url: 'https://url.com' })
       const image2 = controller.getImage({ url: 'https://url.com' })
       expect(image).toBe(image2)
@@ -293,13 +305,15 @@ describe('Controller', () => {
     let image: Img
     let request: RenderRequest
     const size = {
-      width: Math.random(),
-      height: Math.random(),
+      width: Math.round(Math.random() * 100) + 1,
+      height: Math.round(Math.random() * 100) + 1,
     }
     beforeEach(() => {
       controller = new Controller({
         ram: 1,
         units: 'BYTE',
+        // synchronous renderer: completes the warm immediately
+        renderer: ({ done }) => done(),
       })
       image = controller.getImage({ url: 'https://url.com' })
       image.blob = new Blob()
@@ -309,10 +323,13 @@ describe('Controller', () => {
         size,
         url: 'https://url.com',
       })
+      // the image reports its size → the request computes bytesVideo and queues
+      image.emit('size', { size })
     })
 
-    it('should add video memory', () => {
-      request.onRendered()
+    it('should add video memory once rendered', () => {
+      request.render()
+      expect(request.bytesVideo).toBeGreaterThan(0)
       expect(controller.video.addBytes).toHaveBeenCalledWith(request.bytesVideo)
     })
 
@@ -321,7 +338,7 @@ describe('Controller', () => {
       vi.spyOn(controller.video, 'addBytes').mockReturnValue(-1)
       const spy = vi.fn()
       request.on('clear', spy)
-      request.onRendered()
+      request.render()
       expect(spy).toHaveBeenCalledTimes(1)
     })
 
@@ -330,7 +347,7 @@ describe('Controller', () => {
       vi.spyOn(controller.video, 'addBytes').mockReturnValue(1)
       const spy = vi.fn()
       request.on('clear', spy)
-      request.onRendered()
+      request.render()
       expect(spy).not.toHaveBeenCalled()
     })
 
@@ -340,7 +357,7 @@ describe('Controller', () => {
       const spy = vi.fn()
       controller.on('video-overflow', spy)
       request.isLocked = vi.fn().mockReturnValue(true)
-      request.onRendered()
+      request.render()
       expect(spy).toHaveBeenCalledWith({
         type: 'video-overflow',
         target: controller,
@@ -353,8 +370,18 @@ describe('Controller', () => {
       vi.spyOn(controller.video, 'addBytes').mockReturnValue(-1)
       vi.spyOn(image, 'clear')
       request.isLocked = vi.fn().mockReturnValue(false)
-      request.onRendered()
+      request.render()
       expect(image.clear).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pause / resume', () => {
+    it('should forward pause and resume to the frame queue', () => {
+      const controller = new Controller({})
+      controller.pause()
+      controller.resume()
+      expect(controller.frameQueue.pause).toHaveBeenCalledTimes(1)
+      expect(controller.frameQueue.resume).toHaveBeenCalledTimes(1)
     })
   })
 })

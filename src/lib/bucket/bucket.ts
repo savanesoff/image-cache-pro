@@ -11,11 +11,11 @@
  * which involves adding or removing the `RenderRequest` from the set,
  * subscribing or unsubscribing to the "rendered" event, and adding or removing the image from the set of images.
  */
-import { Controller } from '@lib/controller'
-import { Img } from '@lib/image'
+import { type Controller } from '@lib/controller'
+import { type Img } from '@lib/image'
 import { Logger } from '@lib/logger'
-import { RenderRequest, RenderRequestEvent } from '@lib/request'
-import { now, UNITS, UnitsType } from '@utils'
+import { type RenderRequest, type RenderRequestEvent } from '@lib/request'
+import { now, UNITS, type UnitsType } from '@utils'
 
 export type BucketEventTypes =
   | 'progress'
@@ -111,11 +111,22 @@ export type BucketEventHandler<T extends BucketEventTypes> = (
   event: BucketEvent<T>,
 ) => void
 
+/** Strict event map for the Bucket (see Emitter) */
+export type BucketEventMap = {
+  [K in BucketEventTypes]: BucketEvent<K>
+}
+
 export interface BucketProps {
   /** The name of the bucket */
   name?: string
   /** Whether the bucket is locked */
   lock?: boolean
+  /**
+   * Scheduling priority for this bucket's render requests. Higher renders
+   * first (e.g. focused/visible rail: 1, off-screen rails: 0). Requests may
+   * override it individually.
+   */
+  priority?: number
   /** The controller instance */
   controller: Controller
 }
@@ -125,7 +136,7 @@ export interface BucketProps {
  * Emits events when images are loaded, when the bucket is cleared, and when the bucket is rendered.
  * Also tracks the loading state of the bucket and the progress of the loading operation.
  */
-export class Bucket extends Logger {
+export class Bucket extends Logger<BucketEventMap> {
   readonly requests = new Set<RenderRequest>()
   readonly videoMemory = new Map<string, Set<Img>>()
   static bucketNumber = 0
@@ -136,14 +147,17 @@ export class Bucket extends Logger {
   timeout = 0
   controller: Controller
   locked: boolean
+  /** Scheduling priority inherited by this bucket's render requests */
+  priority: number
 
-  constructor({ name, lock = false, controller }: BucketProps) {
+  constructor({ name, lock = false, priority = 0, controller }: BucketProps) {
     super({
       name: name || (Bucket.bucketNumber++).toString(),
       logLevel: 'error',
     })
     this.controller = controller
     this.locked = lock
+    this.priority = priority
   }
 
   registerRequest(request: RenderRequest) {
@@ -205,7 +219,6 @@ export class Bucket extends Logger {
       this.emit('rendered')
     }
   }
-
   /**
    * Any image load event will reset the loading state
    * @param event
@@ -216,7 +229,6 @@ export class Bucket extends Logger {
     this.rendered = false
     this.emit('loading', { request: event.target })
   }
-
   /**
    * This is expensive and should not be used this way
    * Instead, a getter should be used to calculate the current progress
@@ -238,7 +250,6 @@ export class Bucket extends Logger {
       event,
     ])
   }
-
   /**
    * When all images are loaded, emit the loaded event
    *
@@ -261,7 +272,6 @@ export class Bucket extends Logger {
       this.log.info([`Loaded ${this.name}`, now()])
     }
   }
-
   /**
    * When an image errors, emit the error event
    * @param event
@@ -358,45 +368,14 @@ export class Bucket extends Logger {
   //-----------------------   EVENT METHODS   -----------------------
 
   /**
-   * Adds an event listener for the specified event type.
-   * @param event - The type of the event.
-   * @param handler - The event handler function.
-   * @returns The current instance of the Bucket.
-   * @override Logger.on
-   */
-  on<T extends BucketEventTypes>(
-    event: T,
-    handler: BucketEventHandler<T>,
-  ): this {
-    return super.on(event, handler)
-  }
-
-  /**
-   * Removes an event listener for the specified event type.
-   * @param event - The type of the event.
-   * @param handler - The event handler function to remove.
-   * @returns The current instance of the Bucket.
-   * @override Logger.off
-   */
-  off<T extends BucketEventTypes>(
-    event: T,
-    handler: BucketEventHandler<T>,
-  ): this {
-    return super.off(event, handler)
-  }
-
-  /**
-   * Emits an event of the specified type with the specified data.
-   * @param type - The type of the event to emit.
-   * @param data - The data to emit with the event.
-   * @returns True if the event was emitted successfully, false otherwise.
-   * @override Logger.emit
+   * Emits an event, injecting `type` and `target`.
+   * `on`/`off` are inherited fully-typed from the strict Emitter base.
    */
   emit<T extends BucketEventTypes>(
     type: T,
     data?: Omit<BucketEvent<T>, 'target' | 'type'>,
   ): boolean {
-    return super.emit(type, {
+    return this.dispatch(type, {
       ...data,
       type,
       target: this,

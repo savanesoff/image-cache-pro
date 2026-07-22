@@ -3,17 +3,12 @@
  * Its and abstraction that represents memory usage.
  * Emits events when size is overflowed, available or cleared.
  */
-import { Logger, LogLevel } from '@lib/logger'
-import { UNITS, UnitsType } from '@utils'
+import { Logger, type LogLevel } from '@lib/logger'
+import { UNITS, type UnitsType } from '@utils'
 
 /** Memory event types */
 export type MemoryEventTypes =
-  | 'overflow'
-  | 'clear'
-  | 'bytes-added'
-  | 'bytes-removed'
-  | 'cleared'
-  | 'update'
+  'overflow' | 'clear' | 'bytes-added' | 'bytes-removed' | 'cleared' | 'update'
 
 /** Event data for memory events */
 export type MemoryEvent<T extends MemoryEventTypes> = {
@@ -32,6 +27,11 @@ export type MemoryEvent<T extends MemoryEventTypes> = {
 export type MemoryEventHandler<T extends MemoryEventTypes> = (
   event: MemoryEvent<T>,
 ) => void
+
+/** Strict event map for Memory (see Emitter) */
+export type MemoryEventMap = {
+  [K in MemoryEventTypes]: MemoryEvent<K>
+}
 
 /** Memory properties */
 export type MemoryProps = {
@@ -85,7 +85,7 @@ export type MemoryStats = {
  * memory.clear();
  * ```
  */
-export class Memory extends Logger {
+export class Memory extends Logger<MemoryEventMap> {
   /** The number of bytes in the memory object */
   private bytes = 0
   /** The units of the memory object, e.g. "GB" */
@@ -282,42 +282,14 @@ export class Memory extends Logger {
   //--------------------------------  EVENT HANDLING   -------------------------
 
   /**
-   * Overrides the `on` method to add event listeners to the memory object.
-   * @param event - The event to listen for.
-   * @param listener - The listener function to be called when the event is emitted.
-   * @returns The memory object itself.
-   */
-  on<T extends MemoryEventTypes>(
-    event: T,
-    listener: MemoryEventHandler<T>,
-  ): this {
-    return super.on(event, listener)
-  }
-
-  /**
-   * Removes an event listener for the specified event type.
-   * @param event - The type of the event.
-   * @param listener - The event handler function.
-   * @returns
-   */
-  off<T extends MemoryEventTypes>(
-    event: T,
-    listener: MemoryEventHandler<T>,
-  ): this {
-    return super.off(event, listener)
-  }
-
-  /**
-   * Overrides the `emit` method to emit events from the memory object.
-   * @param event - The event to emit.
-   * @param data - The value to pass to the event listeners.
-   * @returns A boolean indicating whether the event was emitted successfully.
+   * Emits an event, injecting `type` and `target`.
+   * `on`/`off` are inherited fully-typed from the strict Emitter base.
    */
   emit<T extends MemoryEventTypes>(
     event: T,
     data?: Omit<MemoryEvent<T>, 'target' | 'type'>,
   ): boolean {
-    return super.emit(event, {
+    return this.dispatch(event, {
       ...data,
       type: event,
       target: this,

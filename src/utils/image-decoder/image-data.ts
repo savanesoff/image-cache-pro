@@ -1,4 +1,5 @@
-import { getImageType, ImageType, isSupportedType } from '../image-type'
+import { getImageType, type ImageType, isSupportedType } from '../image-type'
+import { type Size } from '../size'
 import { getBmpDimensions } from './bmp-decoder'
 import { getGifDimensions } from './gif-decoder'
 import { getJpegDimensions } from './jpeg-decoder'
@@ -6,13 +7,7 @@ import { getPngDimensions } from './png-decoder'
 import { getTiffDimensions } from './tiff-decoder'
 import { getWebpDimensions } from './webp-decoder'
 
-/**
- * The dimensions of an image.
- */
-export type Size = {
-  width: number
-  height: number
-}
+export { type Size } from '../size'
 
 /**
  * The image data, including the image type, dimensions, and raw data.

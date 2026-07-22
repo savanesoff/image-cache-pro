@@ -131,6 +131,14 @@ describe('Loader', () => {
       loader = new Loader({ url: 'blah' })
       loader.load()
       loader.on('loadend', loadEndEventSpy)
+      // a valid PNG header so response validation passes
+      const pngHeader = new Uint8Array([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ])
+      Object.defineProperty(loader.xhr, 'response', {
+        value: pngHeader.buffer,
+        configurable: true,
+      })
       // induce load end event
       loader.xhr?.onload?.(new ProgressEvent('load'))
       loader.on('error', () => null) // to prevent error thrown on no event listener

@@ -1,8 +1,8 @@
 import { Bucket } from '@lib/bucket'
 import { Controller } from '@lib/controller'
 import { FrameQueue } from '@lib/frame-queue'
-import { Img, ImgEvent, ImgEventTypes } from '@lib/image'
-import { Size } from '@utils'
+import { Img, type ImgEvent, type ImgEventTypes } from '@lib/image'
+import { type Size } from '@utils'
 import { RenderRequest } from './render-request'
 
 vi.mock('@lib/image')
@@ -38,10 +38,12 @@ const createImage = ({
     },
   )
   image.loaded = imageLoaded || false
+  image.gotSize = imageLoaded || false
   // @ts-expect-error - mock api
   image.getBytesVideo.mockReturnValue(mockBytesVideo)
   return image
 }
+
 const createBucket = ({
   url = 'test',
   imageLoaded,
@@ -58,6 +60,7 @@ const createBucket = ({
   controller.frameQueue = frameQueue
   const bucket = new Bucket({ name: 'test', controller })
   bucket.controller = controller
+  bucket.priority = 0
   // @ts-expect-error - mock api
   bucket.controller.getImage.mockImplementation(() => image)
   return bucket

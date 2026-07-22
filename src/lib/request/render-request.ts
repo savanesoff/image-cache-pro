@@ -3,16 +3,23 @@
  * Each request is associated with an image and a bucket. Where an image can
  * have multiple requests associated with it, a bucket can have multiple images
  */
-import { Bucket } from '@lib/bucket'
-import { RendererProps, FrameQueue } from '@lib/frame-queue'
-import { ImgProps, ImgEvent, Img } from '@lib/image'
+import { type Bucket } from '@lib/bucket'
+import { type FrameQueue } from '@lib/frame-queue'
+import { type Img, type ImgEvent, type ImgProps } from '@lib/image'
 import { Logger } from '@lib/logger'
-import { Size } from '@utils'
-import { renderer } from './renderer'
+import { type Size } from '@utils'
+import { renderer as defaultRenderer } from './renderer'
 
 export type RenderRequestProps = ImgProps & {
+  /** Target render size. Required — enables the image-decoder bypass. */
   size: Size
+  /** The bucket this request belongs to */
   bucket: Bucket
+  /**
+   * Scheduling priority. Higher renders first. Defaults to the bucket's
+   * priority. A focused rail should out-prioritise off-screen rails.
+   */
+  priority?: number
 }
 
 export type RenderRequestEventTypes =
@@ -23,14 +30,12 @@ export type RenderRequestEventTypes =
   | 'loadstart'
   | 'progress'
   | 'error'
-  | 'render'
 
 export type RenderRequestEvent<T extends RenderRequestEventTypes> = {
   type: T
   target: RenderRequest
 } & (T extends 'error' ? Omit<ImgEvent<'error'>, 'target'> : unknown) &
   (T extends 'progress' ? Omit<ImgEvent<'progress'>, 'target'> : unknown) &
-  (T extends 'render' | 'rendering' ? { renderTime: number } : unknown) &
   (T extends 'loadstart' ? Omit<ImgEvent<'loadstart'>, 'target'> : unknown) &
   (T extends 'rendered' ? { url: string | null } : unknown)
 
@@ -38,49 +43,65 @@ export type RenderRequestEventHandler<T extends RenderRequestEventTypes> = (
   event: RenderRequestEvent<T>,
 ) => void
 
+/** Strict event map for the RenderRequest (see Emitter) */
+export type RenderRequestEventMap = {
+  [K in RenderRequestEventTypes]: RenderRequestEvent<K>
+}
+
 /**
- * Represents a render request for an image.
+ * Represents a render request for an image at one size.
+ *
+ * Lifecycle: constructed → (image loads, size known) → queued on the
+ * FrameQueue → `rendering` → renderer warms/uploads → `rendered`.
+ * `clear()` deterministically releases listeners, queue slots and memory
+ * accounting (invariant: no leaks across bucket churn).
  */
-export class RenderRequest extends Logger {
+export class RenderRequest extends Logger<RenderRequestEventMap> {
   size: Size
   rendered = false
   image: Img
   bucket: Bucket
   bytesVideo = 0
+  /**
+   * Video bytes actually charged to the controller's video memory for this
+   * request (0 when the texture was already resident). Used symmetrically on
+   * removal so accounting never drifts.
+   */
+  bytesVideoCharged = 0
   readonly frameQueue: FrameQueue
+  /** Scheduling priority — higher renders first */
+  readonly priority: number
   visible = false
   /** True if request is added to frame queue */
   requested = false
   cleared = false
-  #renderTimeout: ReturnType<typeof setTimeout> | null = null
   error: string | null = null
+
   /**
    * Constructs a new RenderRequest instance.
-   * @param size - The size of the image.
-   * @param bucket - The bucket containing the image.
-   * @param props - Additional properties for the request.
    */
-  constructor({ size, bucket, ...props }: RenderRequestProps) {
+  constructor({ size, bucket, priority, ...props }: RenderRequestProps) {
     super({ name: 'RenderRequest', logLevel: bucket.controller.level })
     this.size = size
     this.bucket = bucket
+    this.priority = priority ?? bucket.priority
     this.frameQueue = this.bucket.controller.frameQueue
-    this.image = this.bucket.controller.getImage(props)
+    this.image = this.bucket.controller.getImage({ size, ...props })
     this.image.registerRequest(this)
     this.bucket.registerRequest(this)
     this.image.on('loadstart', this.#onloadStart)
     this.image.on('progress', this.#onProgress)
     this.image.on('error', this.#onImageError)
-    // this.image.on('loadend', this.#onLoadEnd)
     this.on('error', this.#onError)
 
-    if (!this.image.loaded) {
+    if (!this.image.gotSize) {
       this.image.on('size', this.request)
     } else if (this.image.isDecoded(size)) {
       this.log.verbose(['Image already decoded', this.image.url])
       this.bytesVideo = this.image.getBytesVideo(this.size)
       this.rendered = true
-      setTimeout(this.#onRendered, 0)
+      // microtask so subscribers attached right after construction still hear it
+      queueMicrotask(this.#onRendered)
     } else {
       this.emit('progress')
       this.request()
@@ -92,7 +113,6 @@ export class RenderRequest extends Logger {
     this.log.error(['Image error', event.statusText, 'status', event.status])
     this.error = 'loadend error: ' + event.statusText
   }
-
   #onImageError = (event: ImgEvent<'error'>) => {
     this.emit('error', event)
   }
@@ -102,120 +122,87 @@ export class RenderRequest extends Logger {
   #onloadStart = (event: ImgEvent<'loadstart'>) => {
     this.emit('loadstart', event)
   }
-  #onLoadEnd = (event: ImgEvent<'loadend'>) => {
-    this.emit('loadend', event)
-  }
-
   /**
-   * Requests the image to be rendered.
+   * Queues the request on the frame queue (called once the image size is known).
    */
   request = () => {
     this.log.verbose(['Requesting render'])
     this.requested = true
     this.bytesVideo = this.image.getBytesVideo(this.size)
-    // request render
     this.emit('loadend')
     this.frameQueue.add(this)
   }
 
   /**
-   * Clears the render request.
+   * Clears the render request: releases listeners, frame-queue slot and
+   * memory accounting. Deterministic teardown — safe to call repeatedly.
    */
   clear(force = false) {
+    if (this.cleared) return
     if (!force && this.isLocked()) return
+    this.cleared = true
+    this.frameQueue.remove(this)
     this.image.off('size', this.request)
     this.image.off('loadstart', this.#onloadStart)
     this.image.off('progress', this.#onProgress)
     this.image.off('error', this.#onImageError)
-    this.image.off('loadend', this.#onLoadEnd)
     this.emit('clear')
-    if (this.#renderTimeout) {
-      clearTimeout(this.#renderTimeout)
-    }
-    this.cleared = true
     this.removeAllListeners()
   }
 
   /**
-   * Checks if the render request is locked.
-   * @returns True if the render request is locked, false otherwise.
+   * Checks if the render request is locked (not evictable).
    */
   isLocked() {
-    return (
+    return Boolean(
       !this.rendered ||
       this.visible ||
       this.bucket.locked ||
-      this.image.isSizeLocked(this)
+      this.image.isSizeLocked(this),
     )
   }
 
   /**
-   * The default render function.
-   * @param props
+   * Renders the request via the injected renderer (or the default hidden-div
+   * pre-warm). Called by the FrameQueue within its per-frame budget.
    */
-  render({ renderTime }: RendererProps) {
-    this.emit('rendering', { renderTime })
-    // render time of 0 means the image is already rendered
-    const isRendered = renderTime === 0
-    // if renderer provided, call it
-    if (!isRendered && this.bucket.controller.renderer) {
-      this.bucket.controller.renderer({
-        target: this,
-        renderTime,
-        type: 'render',
-      })
-    } else if (!isRendered && this.emit('render', { renderTime }) !== true) {
-      renderer({ target: this, renderTime, type: 'render' })
+  render() {
+    if (this.cleared) return
+    this.emit('rendering')
+
+    if (this.image.isDecoded(this.size)) {
+      // texture already resident — no warm needed
+      this.#onRendered()
+      return
     }
 
-    this.#renderTimeout = setTimeout(this.#onRendered, renderTime)
+    const render = this.bucket.controller.renderer ?? defaultRenderer
+    render({ target: this, done: this.#onRendered })
   }
 
   #onRendered = () => {
-    this.rendered = true
     if (this.cleared) {
-      this.log.error(['Rendered cleared request', this.image.url])
+      this.log.verbose([
+        'Render completed after clear — ignored',
+        this.image.url,
+      ])
+      return
     }
+
+    if (this.rendered && this.requested) return // guard double done()
+    this.rendered = true
     this.emit('rendered', { url: this.image.url })
   }
 
   /**
-   * Adds an event listener for the specified event type.
-   * @param type - The type of the event.
-   * @param handler - The event handler function.
-   * @returns The current instance of RenderRequest.
-   */
-  on<T extends RenderRequestEventTypes>(
-    type: T,
-    handler: RenderRequestEventHandler<T>,
-  ): this {
-    return super.on(type, handler)
-  }
-
-  /**
-   * Removes an event listener for the specified event type.
-   * @param type - The type of the event.
-   * @param handler - The event handler function.
-   * @returns The current instance of RenderRequest.
-   */
-  off<T extends RenderRequestEventTypes>(
-    type: T,
-    handler: RenderRequestEventHandler<T>,
-  ): this {
-    return super.off(type, handler)
-  }
-
-  /**
-   * Emits an event of the specified type.
-   * @param type - The type of the event.
-   * @param data - Additional data for the event.
-   * @returns True if the event was emitted successfully, false otherwise.
+   * Emits an event, injecting `type` and `target`.
+   * `on`/`off` are inherited fully-typed from the strict Emitter base.
    */
   emit<T extends RenderRequestEventTypes>(
     type: T,
     data?: Omit<RenderRequestEvent<T>, 'target' | 'type'>,
   ): boolean {
-    return super.emit(type, {
+    return this.dispatch(type, {
       ...data,
       type,
       target: this,

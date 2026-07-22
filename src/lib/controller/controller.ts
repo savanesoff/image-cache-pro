@@ -16,14 +16,13 @@
  * controller.addImage(image); // Add an image to the cache and network queue
  */
 
-import { FrameQueueProps, FrameQueue } from '@lib/frame-queue'
-import { Img, ImgProps, ImgEvent } from '@lib/image'
-import { LogLevel, Logger } from '@lib/logger'
+import { type FrameQueueProps, FrameQueue } from '@lib/frame-queue'
+import { Img, type ImgProps, type ImgEvent } from '@lib/image'
+import { type LogLevel, Logger } from '@lib/logger'
 import { Memory } from '@lib/memory'
 import { Network } from '@lib/network'
-import { RenderRequest, renderer } from '@lib/request'
-import { UnitsType } from '@utils'
-// import { FrameQueue, FrameQueueProps } from "@/frame-queue";
+import { type RenderRequest, type Renderer } from '@lib/request'
+import { type UnitsType } from '@utils'
 
 export type ControllerEventTypes =
   | 'ram-overflow'
@@ -54,6 +53,11 @@ export type ControllerEventHandler<T extends ControllerEventTypes> = (
   event: ControllerEvent<T>,
 ) => void
 
+/** Strict event map for the Controller (see Emitter) */
+export type ControllerEventMap = {
+  [K in ControllerEventTypes]: ControllerEvent<K>
+}
+
 export type ControllerProps = FrameQueueProps & {
   /** The amount of RAM [GB] */
   ram?: number
@@ -71,8 +75,11 @@ export type ControllerProps = FrameQueueProps & {
    * False - only the requested image size data moves to GPU.
    */
   gpuDataFull?: boolean
-  /** The renderer function */
-  renderer?: typeof renderer
+  /**
+   * Injectable render strategy: B2 hidden-div pre-warm (default) or a
+   * consumer-supplied B1 reveal-gate. See `Renderer` docs.
+   */
+  renderer?: Renderer
 }
 
 const styles = {
@@ -84,7 +91,7 @@ const styles = {
 
 export type ControllerCache = Map<string, Img>
 
-export class Controller extends Logger {
+export class Controller extends Logger<ControllerEventMap> {
   readonly ram: Memory
   readonly video: Memory
   readonly cache: ControllerCache
@@ -101,6 +108,8 @@ export class Controller extends Logger {
     units = 'GB',
     logLevel = 'error',
     hwRank = 1,
+    frameBudget,
+    canRender,
     gpuDataFull = false,
     renderer,
   }: ControllerProps) {
@@ -116,6 +125,8 @@ export class Controller extends Logger {
     this.frameQueue = new FrameQueue({
       logLevel,
       hwRank,
+      frameBudget,
+      canRender,
     })
     this.network = new Network({ loaders, logLevel })
     this.ram = new Memory({
@@ -145,7 +156,21 @@ export class Controller extends Logger {
     return this.cache.get(props.url) || this.#createImage(props)
   }
 
+  /**
+   * Pauses background warming (frame queue). Wire this to input activity —
+   * warming must never compete with navigation.
+   */
+  pause() {
+    this.frameQueue.pause()
+  }
+
+  /** Resumes background warming on the next frame. */
+  resume() {
+    this.frameQueue.resume()
+  }
+
   clear() {
+    this.frameQueue.clear()
     this.cache.forEach(image => image.clear())
     this.cache.clear()
     this.network.clear()
@@ -164,6 +189,7 @@ export class Controller extends Logger {
    */
   #deleteImage(image: Img) {
     this.cache.delete(image.url)
+    this.network.remove(image)
     this.ram.removeBytes(image.getBytesRam())
     image.clear()
     this.emit('image-removed', { image })
@@ -199,7 +225,6 @@ export class Controller extends Logger {
     this.emit('render-request-added', { request: event.request })
     this.emit('update')
   }
-
   /**
    * Adds video bytes of a render request to the video memory
    * not in gpuDataFull mode not every render request will consume video memory
@@ -211,7 +236,6 @@ export class Controller extends Logger {
   }: ImgEvent<'render-request-rendered'>) => {
     this.#addVideoBytes(bytes)
   }
-
   /**
    * Removes video bytes of a render request from the video memory
    * @param event
@@ -277,7 +301,6 @@ export class Controller extends Logger {
   #onImageLoadend = ({ bytes }: ImgEvent<'loadend'>) => {
     this.#addRamBytes(bytes)
   }
-
   /**
    * Adds decoded image size ram data to the ram
    * @param event
@@ -349,40 +372,16 @@ export class Controller extends Logger {
   }
 
   //------------------------------    EVENTS    ------------------------------
-  /**
-   * Adds an event listener to the controller
-   * @param type
-   * @param handler
-   */
-  on<T extends ControllerEventTypes>(
-    type: T,
-    handler: ControllerEventHandler<T>,
-  ): this {
-    return super.on(type, handler)
-  }
 
   /**
-   * Removes an event listener from the controller
-   * @param type
-   * @param handler
-   */
-  off<T extends ControllerEventTypes>(
-    type: T,
-    handler: ControllerEventHandler<T>,
-  ): this {
-    return super.off(type, handler)
-  }
-
-  /**
-   * Emits an event of the specified type
-   * @param type
-   * @param props
+   * Emits an event, injecting `type` and `target`.
+   * `on`/`off` are inherited fully-typed from the strict Emitter base.
    */
   emit<T extends ControllerEventTypes>(
     type: T,
     data?: Omit<ControllerEvent<T>, 'type' | 'target'>,
   ): boolean {
-    return super.emit(type, {
+    return this.dispatch(type, {
       ...data,
       type,
       target: this,

@@ -1,4 +1,5 @@
 export * from './bucket'
+export * from './emitter'
 export * from './image'
 export * from './loader'
 export * from './controller'
