@@ -28,3 +28,8 @@ dist
 
 # mcp-zids on-box session outputs (screenshots, logs)
 logs/
+
+# demo build + playwright artifacts
+dist-demo/
+playwright-report/
+test-results/

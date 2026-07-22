@@ -23,6 +23,15 @@
       "@mocks/*": ["./src/__mocks__/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts", "eslint.config.js"],
+  "include": [
+    "src",
+    "demo",
+    "tests",
+    "vite.config.ts",
+    "vite.config.demo.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "eslint.config.js"
+  ],
   "exclude": ["node_modules", "dist"]
 }

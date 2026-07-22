@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>image-cache-pro — demo</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <!--
+    Cobalt (Chrome-88-class STB browser) markup rules — keep it boring:
+    - <div> only (no semantic tags), all text inside its own sized element
+    - every element that paints (bg/border) carries explicit dimensions
+    - flex only (no grid), margins instead of flex gap
+    - no :nth-child/:first-child/:not(), no calc()/fit-content/var()
+  -->
+  <body>
+    <div id="app">
+      <div id="topbar">
+        <div id="title">image-cache-pro</div>
+        <div id="mode" class="badge b-mode"></div>
+        <div id="stat-ram" class="badge b-wide">RAM</div>
+        <div id="stat-vid" class="badge b-wide b-orange">VID</div>
+        <div id="stat-imgs" class="badge b-tiny">I: 0</div>
+        <div id="stat-reqs" class="badge b-tiny">R: 0</div>
+        <div id="stat-queue" class="badge b-small">Q: 0</div>
+        <div id="stat-fps" class="badge b-small b-green">fps</div>
+      </div>
+      <div id="rails-viewport">
+        <div id="rails"></div>
+      </div>
+      <div id="help">
+        ARROWS navigate · S scheduler/stampede · P pause/resume · C clear ·
+        warming yields while a key is held
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

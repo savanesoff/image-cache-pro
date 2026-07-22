@@ -7,5 +7,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    include: ['src/**/*.{test,spec}.ts'],
+    // Playwright owns tests/e2e
+    exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
   },
 })

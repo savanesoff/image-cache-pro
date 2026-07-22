@@ -17,7 +17,11 @@ import tseslint from 'typescript-eslint'
 const ignores = [
   '**/node_modules/**',
   '**/dist/**',
+  '**/dist-demo/**',
   '**/coverage/**',
+  '**/logs/**',
+  '**/playwright-report/**',
+  '**/test-results/**',
   '**/*.d.ts',
   '**/vite.config.ts.timestamp-*.mjs',
 ]

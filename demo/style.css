@@ -1,0 +1,219 @@
+/*
+ * Cobalt-safe stylesheet:
+ * - rem units only; the root font-size is set from the viewport by main.ts,
+ *   so the layout scales 1280 → 1920 boxes.
+ * - flex only, margins instead of flex `gap` (gap is a no-op on Cobalt)
+ * - no var()/calc()/grid/positional pseudo-classes
+ * - every painted box gets explicit dimensions (Cobalt auto-size is 0×0);
+ *   dynamic widths (rails, cards viewport) are set inline by main.ts
+ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: #14141c;
+  color: #e8e8ec;
+  font-family: sans-serif;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  /* explicit size set by main.ts (innerWidth/innerHeight) */
+}
+
+#topbar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: 3rem;
+  padding-left: 1rem;
+  background: #1b1b26;
+  flex: 0 0 auto;
+}
+
+#title {
+  width: 11rem;
+  height: 1.5rem;
+  line-height: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #22c1d6;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.badge {
+  height: 1.4rem;
+  line-height: 1.4rem;
+  margin-right: 0.5rem;
+  padding-left: 0.5rem;
+  border-radius: 0.7rem;
+  background: #2a2a3a;
+  color: #c8c8d4;
+  font-family: monospace;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.b-mode {
+  width: 16rem;
+  color: #ca9b3d;
+}
+
+.b-wide {
+  width: 15rem;
+}
+
+.b-small {
+  width: 6rem;
+}
+
+.b-tiny {
+  width: 4.5rem;
+}
+
+.b-orange {
+  color: #ffb64d;
+}
+
+.b-green {
+  color: #4dd68a;
+}
+
+.b-load {
+  width: 7.5rem;
+}
+
+.b-render {
+  width: 8.5rem;
+}
+
+.b-ram {
+  width: 16rem;
+}
+
+.b-vid {
+  width: 13rem;
+}
+
+#rails-viewport {
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding-left: 1rem;
+  padding-top: 0.5rem;
+}
+
+#rails {
+  /* translated vertically by main.ts for rail navigation */
+}
+
+.rail {
+  margin-bottom: 0.6rem;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+  /* explicit width set by main.ts so the focus background paints */
+}
+
+.rail.focused {
+  background: #232333;
+}
+
+.rail-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: 1.8rem;
+  margin-bottom: 0.3rem;
+}
+
+.rail-name {
+  width: 8rem;
+  height: 1.4rem;
+  line-height: 1.4rem;
+  font-size: 0.85rem;
+  color: #9a9aa8;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.rail.focused .rail-name {
+  color: #22c1d6;
+}
+
+.cards-viewport {
+  overflow: hidden;
+  /* explicit width set by main.ts */
+}
+
+.cards {
+  display: flex;
+  flex-direction: row;
+  /* translated horizontally by main.ts for card navigation */
+}
+
+.card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 10rem;
+  height: 5.65rem;
+  margin-right: 0.5rem;
+  background-color: #232330;
+  background-repeat: no-repeat;
+  background-position: top left;
+  /* backgroundSize is set inline per-card in rem by main.ts */
+  border: 0.15rem solid transparent;
+  opacity: 0.45;
+}
+
+.card.ready {
+  opacity: 1;
+}
+
+.card.focused {
+  border-color: #ff7a00;
+}
+
+.card-info {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  width: 9rem;
+  height: 4.4rem;
+  padding-left: 0.4rem;
+  padding-top: 0.3rem;
+  background: #101018;
+  opacity: 0.92;
+  border-radius: 0.3rem;
+}
+
+.card-info-line {
+  width: 8.4rem;
+  height: 1rem;
+  line-height: 1rem;
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: #c8c8d4;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#help {
+  flex: 0 0 auto;
+  height: 2rem;
+  line-height: 2rem;
+  padding-left: 1rem;
+  font-size: 0.75rem;
+  color: #6a6a78;
+  background: #1b1b26;
+  white-space: nowrap;
+  overflow: hidden;
+}

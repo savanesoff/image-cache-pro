@@ -72,6 +72,29 @@
       }
     },
     {
+      "label": "Demo",
+      "type": "shell",
+      "command": "pnpm dev --open",
+      "isBackground": true,
+      "icon": { "id": "play-circle" },
+      "group": "build",
+      "detail": "Serve the demo app (vite dev, demo/) and open it in the browser.",
+      "options": {
+        "statusbar": { "color": "#cf6eff", "label": "$(play-circle) Demo" }
+      }
+    },
+    {
+      "label": "E2E",
+      "type": "shell",
+      "command": "pnpm run test:e2e",
+      "icon": { "id": "browser" },
+      "group": "test",
+      "detail": "Playwright end-to-end tests over the demo app.",
+      "options": {
+        "statusbar": { "color": "#22d682", "label": "E2E" }
+      }
+    },
+    {
       "label": "Clean",
       "type": "shell",
       "command": "pnpm run clean:package",
