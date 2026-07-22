@@ -3,28 +3,26 @@
     "target": "ESNext",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "module": "ESNext",
-    "skipLibCheck": true,
-    "importHelpers": true,
     "moduleResolution": "bundler",
+    "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "esModuleInterop": true,
-    "types": ["vite/client", "vitest/globals", "vitest/jsdom"],
-    "baseUrl": "./",
+    "types": ["vite/client", "vitest/globals"],
     "paths": {
-      "@lib/*": ["src/lib/*"],
-      "@utils": ["src/utils"],
-      "@mocks*": ["src/__mocks__/*"]
+      "@lib/*": ["./src/lib/*"],
+      "@utils": ["./src/utils"],
+      "@utils/*": ["./src/utils/*"],
+      "@mocks/*": ["./src/__mocks__/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts"], // Ensure these files are included
-  "exclude": ["node_modules", "dist"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "eslint.config.js"],
+  "exclude": ["node_modules", "dist"]
 }

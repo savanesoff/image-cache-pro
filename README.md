@@ -281,12 +281,7 @@ Memory instance can be accessed by calling `controller.ram/gpu` and you can list
 
 ```ts
 export type MemoryEventTypes =
-  | 'overflow'
-  | 'clear'
-  | 'bytes-added'
-  | 'bytes-removed'
-  | 'cleared'
-  | 'update'
+  'overflow' | 'clear' | 'bytes-added' | 'bytes-removed' | 'cleared' | 'update'
 ```
 
 ## LICENSE

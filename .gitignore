@@ -8,8 +8,20 @@ node_modules
 dist
 *.local
 
-# Editor directories and files
+# Claude Code local (per-user) settings
+.claude/settings.local.json
+
+# Editor directories and files — shared editor config IS committed
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 
 *.zip
+
+.npmrc
+
+# Local machine/box config
+.env
+.env.*

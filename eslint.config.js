@@ -1,81 +1,64 @@
-import js from '@eslint/js'
-import typescriptPlugin from '@typescript-eslint/eslint-plugin'
-import typescriptParser from '@typescript-eslint/parser'
-import importPlugin from 'eslint-plugin-import'
-import prettierPlugin from 'eslint-plugin-prettier'
-import vitestGlobalsPlugin from 'eslint-plugin-vitest-globals'
+/**
+ * Flat ESLint config — modeled on the onyx-core `@oregannetworks/lint` setup,
+ * trimmed to what this framework-agnostic vanilla-TS lib needs.
+ *
+ * Formatting is Prettier's job (run separately via `pnpm lint` / `lint-fix`);
+ * eslint-config-prettier keeps stylistic rules out of ESLint's way.
+ */
+import eslintJs from '@eslint/js'
+import vitest from '@vitest/eslint-plugin'
+import { defineConfig } from 'eslint/config'
+import eslintConfigPrettier from 'eslint-config-prettier'
+import { importX } from 'eslint-plugin-import-x'
+import unusedImports from 'eslint-plugin-unused-imports'
+import globals from 'globals'
+import tseslint from 'typescript-eslint'
 
-const globalIgnorePatterns = ['node_modules', 'dist']
+const ignores = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/coverage/**',
+  '**/*.d.ts',
+  '**/vite.config.ts.timestamp-*.mjs',
+]
 
-export default [
-  // ESLint base configurations
-  js.configs.recommended,
+export default defineConfig(
+  { ignores },
 
-  // TypeScript plugin recommended configurations
+  eslintJs.configs.recommended,
+  tseslint.configs.recommendedTypeChecked,
+
   {
-    ignores: globalIgnorePatterns,
-    files: ['**/*.ts'],
-    languageOptions: {
-      parser: typescriptParser,
-      parserOptions: {
-        ecmaVersion: 2021,
-        sourceType: 'module',
-        project: './tsconfig.json', // Only include the main tsconfig.json
-      },
-      globals: {
-        window: true,
-        document: true,
-        Image: true, // Add Image to the global scope
-        setTimeout: true, // Add setTimeout to the global scope
-        clearTimeout: true, // Add clearTimeout to the global scope
-        console: true, // Add console to the global scope
-      },
-    },
-    plugins: {
-      '@typescript-eslint': typescriptPlugin,
-    },
-    rules: {
-      ...typescriptPlugin.configs.recommended.rules,
-      // Disable rules that are already handled by TypeScript
-      'no-unused-vars': 'off', // Handled by @typescript-eslint/no-unused-vars
-      '@typescript-eslint/no-unused-vars': ['error'], // Enable TypeScript version of no-unused-vars
-    },
-  },
-
-  // Prettier configurations
-  {
-    ignores: globalIgnorePatterns,
-    files: ['**/*.{js,ts}'],
-    plugins: {
-      prettier: prettierPlugin,
-    },
-    rules: {
-      ...prettierPlugin.configs.recommended.rules,
-      'prettier/prettier': 'error',
-    },
-  },
-
-  // Custom project-specific configurations
-  {
-    ignores: globalIgnorePatterns,
-    files: ['**/*.{js,ts}'],
+    files: ['**/*.{js,mjs,cjs,ts}'],
     languageOptions: {
       parserOptions: {
-        ecmaVersion: 2021,
-        sourceType: 'module',
+        projectService: {
+          allowDefaultProject: ['*.js', '*.mjs'],
+        },
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
-        browser: true,
-        es2021: true,
-        node: true,
+        ...globals.browser,
+        ...globals.es2025,
+        ...globals.node,
+      },
+    },
+    settings: {
+      'import-x/resolver': {
+        typescript: {
+          alwaysTryTypes: true,
+          project: './tsconfig.json',
+        },
       },
     },
     plugins: {
-      import: importPlugin,
-      '@typescript-eslint': typescriptPlugin, // Ensure TypeScript plugin is available here as well
+      'import-x': importX,
+      'unused-imports': unusedImports,
     },
     rules: {
-      'import/order': [
+      'no-console': 'error',
+      'import-x/no-duplicates': 'error',
+      'import-x/order': [
         'error',
         {
           groups: [
@@ -87,43 +70,76 @@ export default [
             'index',
           ],
           pathGroups: [
-            {
-              pattern: '@/**',
-              group: 'internal',
-            },
+            { pattern: '@lib/**', group: 'internal' },
+            { pattern: '@utils', group: 'internal' },
+            { pattern: '@mocks/**', group: 'internal' },
           ],
           pathGroupsExcludedImportTypes: ['builtin'],
-          alphabetize: {
-            order: 'asc',
-            caseInsensitive: true,
-          },
+          alphabetize: { order: 'asc', caseInsensitive: true },
+        },
+      ],
+      'unused-imports/no-unused-imports': 'error',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          disallowTypeAnnotations: false,
+          fixStyle: 'inline-type-imports',
+        },
+      ],
+      'padding-line-between-statements': [
+        'error',
+        { blankLine: 'always', prev: 'block-like', next: 'block-like' },
+      ],
+      'lines-between-class-members': [
+        'error',
+        {
+          enforce: [
+            { blankLine: 'always', prev: '*', next: 'method' },
+            { blankLine: 'always', prev: 'method', next: '*' },
+            { blankLine: 'never', prev: 'field', next: 'field' },
+          ],
         },
       ],
     },
   },
 
-  // Vitest globals configurations
+  // Plain JS (config files): type-aware rules need a TS program — skip them
   {
-    ignores: globalIgnorePatterns,
-    files: ['**/*.test.ts', '**/*.spec.ts', '**/__mocks__/**/*.ts'],
-    // languageOptions: {
-    //   globals: {
-    //     describe: 'readonly',
-    //     it: 'readonly',
-    //     test: 'readonly',
-    //     expect: 'readonly',
-    //     beforeAll: 'readonly',
-    //     beforeEach: 'readonly',
-    //     afterAll: 'readonly',
-    //     afterEach: 'readonly',
-    //     vi: 'readonly',
-    //   },
-    // },
-    plugins: {
-      vitestGlobals: vitestGlobalsPlugin,
-    },
+    files: ['**/*.{js,mjs,cjs}'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+
+  // Tests: vitest plugin + relaxed rules
+  {
+    files: [
+      '**/*.{test,tests,spec,specs}.{js,ts}',
+      '**/__mocks__/**/*.{js,ts}',
+    ],
+    plugins: { vitest },
     rules: {
-      'no-undef': 'off', // Disable the default no-undef rule
+      ...vitest.configs.recommended.rules,
+      'vitest/max-nested-describe': ['error', { max: 3 }],
+      'no-console': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
-]
+
+  // Prettier last — disables conflicting stylistic rules
+  eslintConfigPrettier,
+)

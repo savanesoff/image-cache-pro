@@ -1,2 +1,7 @@
 node_modules
 dist
+coverage
+pnpm-lock.yaml
+CHANGELOG.md
+demo-assets
+.changeset

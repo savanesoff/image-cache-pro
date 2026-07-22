@@ -1,20 +1,21 @@
-import path from 'path'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
 import { defineConfig } from 'vite'
-import tsconfigPaths from 'vite-tsconfig-paths'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import dts from 'vite-plugin-dts'
 
 export default defineConfig({
+  resolve: {
+    tsconfigPaths: true,
+  },
   build: {
     lib: {
-      entry: path.resolve(__dirname, 'src/index.ts'),
+      entry: path.resolve(import.meta.dirname, 'src/index.ts'),
       name: 'image-cache',
     },
-    sourcemap: true, // Enable source maps
+    // Cobalt is a Chrome-88-class browser — the published bundle must not
+    // assume newer syntax.
+    target: 'chrome88',
+    sourcemap: true,
     rollupOptions: {
-      external: ['tslib'],
       output: [
         {
           format: 'es',
@@ -31,5 +32,12 @@ export default defineConfig({
       ],
     },
   },
-  plugins: [tsconfigPaths()],
+  plugins: [
+    dts({
+      outDirs: ['dist/types'],
+      entryRoot: 'src',
+      include: ['src'],
+      exclude: ['**/*.spec.ts', '**/*.test.ts', 'src/__mocks__/**'],
+    }),
+  ],
 })
