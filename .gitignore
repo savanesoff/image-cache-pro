@@ -11,6 +11,9 @@ dist
 # Claude Code local (per-user) settings
 .claude/settings.local.json
 
+# Internal working docs — local only
+HANDOFF.md
+
 # Editor directories and files — shared editor config IS committed
 .vscode/*
 !.vscode/extensions.json
