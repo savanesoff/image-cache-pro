@@ -2,303 +2,335 @@
 
 # image-cache-pro
 
-[![Github](https://badgen.net/badge/Protosus/image-cache-pro?color=purple&icon=github)](https://github.com/savanesoff/image-cache-pro)
-[![Beta](https://img.shields.io/badge/Status-Beta-cyan)](https://github.com/savanesoff/image-cache-pro)
-[![Build Status](https://github.com/savanesoff/image-cache-pro/actions/workflows/publish.yaml/badge.svg?branch=main&event=push)](https://github.com/savanesoff/image-cache-pro/actions/workflows/publish.yaml)
-[![Demo](https://img.shields.io/badge/Demo-View-blue)](https://savanesoff.github.io/image-cache-preact/)
+**A frame-budgeted image scheduler for the web — decode, GPU-warm, cache and
+evict images a few per frame, off your app's critical path.**
+
 [![NPM](https://img.shields.io/npm/v/image-cache-pro.svg)](https://www.npmjs.com/package/image-cache-pro)
-
-[![Li](https://badgen.net/badge/Sponsored%20by/Oregan%20Networks?color=blue)](https://oregan.net/)
+[![Build Status](https://github.com/savanesoff/image-cache-pro/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/savanesoff/image-cache-pro/actions/workflows/test.yaml)
+[![Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-blue)](https://savanesoff.github.io/image-cache-pro/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Li](https://badgen.net/badge/Profile/LI?color=blue)](https://www.linkedin.com/in/samvel-avanesov)
+[![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
+[![Sponsored by](https://badgen.net/badge/Sponsored%20by/Oregan%20Networks?color=blue)](https://oregan.net/)
 
-**Status: Beta** - This library is currently in beta. Please report any issues or feedback to help us improve.
+[![demo](https://raw.githubusercontent.com/savanesoff/image-cache-pro/main/demo-assets/image-cache-demo.gif)](https://savanesoff.github.io/image-cache-pro/)
 
-JavaScript Browser application library for ultimate Web app image (load, pre-load, caching, grouping) control, as well as detailed RAM and GPU memory usage control and monitoring.
+---
 
-[![Validator](https://raw.githubusercontent.com/savanesoff/image-cache-pro/main/demo-assets/image-cache-demo.gif)](https://savanesoff.github.io/image-cache-pro)
+## The problem
 
-You can find a demo of the library [here](https://savanesoff.github.io/image-cache-preact/).
+Paint a rail of 20 poster images at once and the browser must **decode 20
+images and upload 20 textures to the GPU in the same breath**. On a desktop
+you might not notice. On constrained hardware — smart TVs, set-top boxes,
+low-end mobile — that stampede spikes the render thread and your navigation
+visibly janks. Measured on a real set-top box (Cobalt browser): a single rail
+scroll-in cost **~65% render-thread CPU**, starving the focus animation.
 
-### React Library
+The browser gives you no control here: `<img>` decode timing, texture upload
+timing, cache residency and eviction are all opaque. When the browser evicts
+an image you get a surprise re-fetch and a blank frame; when it doesn't, you
+get creeping memory pressure you cannot see.
 
-[![GitHub Repo](https://img.shields.io/badge/GitHub-image%20cache%20react-blue)](https://github.com/savanesoff/image-cache-react)
+`image-cache-pro` takes that work off the platform's whims:
 
-[![NPM](https://nodei.co/npm/image-cahce-react.png?mini=true)](https://nodei.co/npm/image-cache-react/)
+- **Decode ahead** — compressed bytes → RAM bitmap, before the image is needed.
+- **Warm the GPU a few images per frame** — uploads are serialized on
+  `requestAnimationFrame` with a byte/time budget, so the hardware never sees
+  a stampede.
+- **Yield to input** — warming pauses while your app is busy (a key is held,
+  a scroll is animating) and resumes on idle.
+- **Budget and evict deterministically** — you set RAM and GPU-memory
+  budgets; the least-important work is evicted first, and anything visible or
+  locked survives.
 
-### Preact Library
+Framework-agnostic, dependency-free, ~10 kB gzipped, dual ESM+CJS, typed end
+to end. Built for and verified on Chrome-88-class embedded browsers (Cobalt /
+smart-TV class) — if it runs there, it runs anywhere.
 
-[![GitHub Repo](https://img.shields.io/badge/GitHub-image%20cache%20preact-blue)](https://github.com/savanesoff/image-cache-preact)
-
-[![NPM](https://nodei.co/npm/image-cahce-preact.png?mini=true)](https://nodei.co/npm/image-cache-preact/)
-
-## Table of Contents
-
-- [Origin](#origin)
-- [Use Case](#use-case)
-  - [Memory Management](#memory-management)
-  - [Performance (FPS)](#performance-fps)
-- [Features](#features)
-- [RAM Usage Monitoring](#ram-usage-monitoring)
-- [GPU Memory Usage Monitoring](#gpu-memory-usage-monitoring)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Controller](#controller)
-  - [Bucket](#bucket)
-  - [RenderRequest](#renderrequest)
-- [License](#license)
-- [Acknowledgments](#acknowledgments)
-
-## Origin
-
-We're all too familiar with the concept of client-side caching. We do it all the time when it comes to server data requests to ensure the same requests from your app are cached in JavaScript/Browser to optimize network traffic load and the responsiveness of your application. Everybody wins: the user (no wait time), the cloud (cutting costs of compute), the user's network load, their machine resources, etc. There are lots of libraries addressing this very issue.
-
-But have you ever wondered what happens when your app requests an image from a server? From my research and experience, the browser caches the image data, but we have no access to it, no control over it, we don't know if the image data was evicted from the cache or how much memory was consumed, no way to monitor it, no way to manage it. If the browser decides to evict the image data from the cache, it will be re-requested from the server, which means UI has to wait for the data again, and the whole process repeats itself. This is not good for the user experience, not good for network traffic, not good for the server, not good for the browser, and not good for the user's machine resources.
-
-And this is where this library comes in.
-
-## Use Case
-
-Two main use cases for this library: Memory Usage and Performance (FPS).
-
-### Memory Management
-
-Any web-based application with heavy use of image assets, such as an Image Gallery/Catalog, Product Showcase, or Image Editing, intended to run on a wide range of platforms limited by hardware specifications and/or available resources such as RAM, GPU cache/memory, and CPU. This library provides a way to manage the memory usage of the images loaded by the application and ensure that the application does not consume too much memory and slow down the system while caching images in JS memory and GPU memory.
-
-### Performance (FPS)
-
-Rendering multiple images at once can lead to performance issues (FPS drop). The more images and the higher the image resolution, the bigger the impact. This is because the browser has to push a lot of image data to the GPU memory, and the GPU has to render it on the screen. This library provides a way to pre-render images before they are ready to be displayed on the screen, such that it staggers GPU operations between frames, ensuring that the application runs smoothly and efficiently with minimal FPS drop. Amount of time required for pre-rendering images is determined by the image size and `hardware rank` configuration option. The lower the rank, the slower the pre-rendering process, same goes for larger images takes longer to pre-render. This library does all the heavy lifting for you, so you don't have to worry about it.
-
-## Features
-
-`image-cache-pro` library provides the following features:
-
-- Image pre-loading
-- Image pre-rendering
-- Image caching
-- Image RAM usage monitoring
-- Image GPU memory usage monitoring
-- Image RAM eviction control
-- Image GPU memory eviction control
-- Image RAM persistence control
-- Image GPU memory persistence control
-- Event-driven architecture
-- Hardware specifications configuration
-
-### RAM Usage Monitoring
-
-`image-cache-pro` library provides a way to monitor the RAM usage of the images loaded by the application. This is useful to ensure that the application does not consume too much memory and slow down the system.
-
-Image data usage consists of two data footprints:
-
-- **Compressed image data footprint:** Image data as it was received from the server, depending on image type compression (e.g., JPEG, PNG, WEBP, etc.). This is what the browser downloads and stores in RAM as is.
-- **Uncompressed image data footprint:** Image data after it has been decompressed by the browser to display its bitmap representation on the screen. An RGB or RGBA bitmap representation of the image (grayscale, color, alpha channel, etc.).
-
-Both of these data are stored in the RAM, and this library provides a way to monitor both of these data footprints to give you a complete picture of the memory usage of the images loaded by the application.
-
-### GPU Memory Usage Monitoring
-
-`image-cache-pro` library provides a way to monitor the GPU memory usage of the images loaded by the application. This is useful to ensure that the application does not consume too much memory and slow down the system. Different browsers handle this bit differently, where most desktop browsers will create bitmap data of the image corresponding to actual pixels rendered on the screen and store it in the GPU memory, while other browsers will store the entire uncompressed image data in the GPU memory and render it on the screen using GPU scaling approach. This distinction is important to understand when it comes to GPU memory usage monitoring and is defined by the `gpuFullMode` configuration option. Where:
-
-- `gpuFullMode: true` - will monitor the entire uncompressed image data footprint in the GPU memory.
-- `gpuFullMode: false` - will monitor only the rendered bitmap size data footprint in the GPU memory.
-
-This distinction is important to understand when it comes to GPU memory usage and having an understanding of the actual memory usage of the images loaded by the application. Example:
-
-While rendering a 4k image (RGBA) as 100x100 pixels on the screen, the GPU memory usage will be different depending on the browser, and with the `gpuFullMode` configuration option, we can distinguish a GPU memory footprint:
-
-- In `gpuFullMode: true`, the GPU memory usage will be the same as the uncompressed image data footprint size, which means the GPU memory usage will contain the entire uncompressed image data, which in MB is 3840x2160x4 bytes = 33.18 MB.
-  - This is because the entire image data is stored in the GPU memory and rendered on the screen using GPU scaling approach.
-- In `gpuFullMode: false`, the GPU memory usage will be the same as the rendered RGBA bitmap size data, which means the GPU memory usage will be the same as the 100x100 RGBA image size, which in MB is 100x100x4 bytes = 0.39 MB.
-
-## Installation
+## Quick start
 
 ```sh
-<npm, pnpm, yarn> install image-cache-pro
+npm install image-cache-pro
 ```
 
-## Usage
-
-Create a main cache controller instance and configure it with the desired settings.
-
-### Controller
-
-Is the main cache controller instance that manages the memory usage of the images loaded by the application and ensures that the application does not consume too much memory and slow down the system.
-Its recommended to create a single instance of the controller for the entire application, however, you can create multiple instances if you must.
-
 ```ts
-import { Controller } from 'image-cache-pro'
+import { Controller, Bucket, RenderRequest } from 'image-cache-pro'
 
+// One Controller per app: owns budgets, network queue and the frame queue.
 const controller = new Controller({
-  // Configuration options
-  // ...
-  RAM: 500, // units of memory for RAM usage
-  GPU: 300, // units of memory for GPU usage
-  units: 'MB', // 'KB', 'MB', 'GB' units of memory for RAM and GPU
-  loaders: 4, // number of concurrent image loaders - max 6
+  ram: 200, // RAM budget (compressed + decoded bitmaps)
+  video: 60, // GPU-memory budget (uploaded textures)
+  units: 'MB',
+  loaders: 4, // parallel network loads
+  frameBudget: { bytes: 1_048_576 }, // ≈ one 512×512 RGBA texture per frame
+  canRender: () => !myApp.isNavigating, // yield gate: pause warming while busy
 })
 
-// add event listeners if you must
-controller.on('update', (event: ControllerEvent<'update'>) => {
-  console.log('Controller update event:', event)
+// One Bucket per UI region (a rail, a page, a virtual list).
+const rail = new Bucket({ controller, name: 'top-picks', priority: 1 })
+
+// One RenderRequest per image at one size.
+const request = new RenderRequest({
+  bucket: rail,
+  url: 'https://cdn.example.com/poster.jpg',
+  size: { width: 320, height: 180 }, // known size → header decoders bypassed
 })
 
-controller.on('ram-overflow', (event: ControllerEvent<'ram-overflow'>) => {
-  console.log('Controller RAM overflow event:', event) // take action to prevent RAM overflow
-})
-
-controller.on('video-overflow', (event: ControllerEvent<'video-overflow'>) => {
-  console.log('Controller GPU overflow event:', event) // take action to prevent GPU overflow
-})
-```
-
-### Bucket
-
-Then anywhere in your application, create an image Bucket to handle images in groups. Think of Buckets as a way to group images that you want to load, cache, monitor, and control, say for each page or each section of your application.
-
-You can create unlimited buckets, but it's recommended to create a single bucket for each page or section of your application.
-Bucket will automatically load and render images in the background, and you can monitor the progress of the images being pre-rendered by listening to the `rendered` event.
-
-```ts
-import { Bucket } from 'image-cache-pro'
-
-const bucket = new Bucket({
-  // Configuration options
-  // ...
-  controller, // pass the controller instance
-  lock: true, // lock the bucket to prevent eviction of images in you need the data to persist in the cache
-  name: 'Recent Images', // name of the bucket - optional, good for debugging
-})
-
-// wait for all bucket requests to be pre-rendered do you can trigger smooth rendering of the images on the screen
-bucket.on('rendered', (event: BucketEvent<'rendered'>) => {
-  console.log('All bucket requests are pre-rendered:', event)
-  // ex: myGallery.fadeIn();
-})
-
-// you can clear (release) bucket content by calling clear method
-myGallery.on('exit', event => {
-  bucket.clear()
-  console.log('Bucket cleared:', event)
+request.on('rendered', () => {
+  // the decoded bitmap is in RAM and the texture is warm — paint for free:
+  cell.style.backgroundImage = `url("${request.image.element.src}")`
 })
 ```
 
-### RenderRequest
+That's the whole model. Everything else is tuning.
 
-Now you're ready to define your images using `RenderRequest` method, which is a way to request an image to be loaded, cached, monitored.
-
-> Note: You must set request image `size` to let the library know how to handle the image data, because you can have same image requested multiple times with different sizes, which will be handled differently by the library.
-
-```ts
-
-const urls = [...]; // array of image urls
-
-urls.forEach(url => {
-  const request = new RenderRequest({
-    // Configuration options
-    // ...
-    bucket, // pass the bucket instance
-    url, // image url
-    size: { width: 100, height: 100 }, // image size - required
-  });
-
-// typically there is no need to monitor request, but you can if you must
-  request.on('rendered', (event: RenderRequestEvent<'rendered'>) => {
-    console.log('Image Pre-rendered and ready to be used:', event);
-  });
-});
+## How it works
 
 ```
-
-All done! Now you have a complete control over the images loaded by your application.
-
-## Advanced Usage
-
-There are many events you can listen to and many methods you can call to control the images loaded by your application.
-
-### Controller Events
-
-```ts
-export type ControllerEventTypes =
-  | 'ram-overflow' // RAM overflow event
-  | 'video-overflow' // GPU overflow event
-  | 'update' // controller update event
-  | 'image-added' // image added to the cache
-  | 'image-removed' // image removed from the cache
-  | 'clear' // cache clear event
-  | 'render-request-added' // image render request added
-  | 'render-request-removed' // image render request removed
+Controller ──── owns budgets (RAM / GPU), the network queue, the frame queue
+   │
+   ├── Bucket ───────── a UI region: groups requests, aggregates progress,
+   │      │             carries a priority and an eviction lock
+   │      │
+   │      └── RenderRequest ── one image at one size:
+   │             │             load → decode → queue → warm → rendered
+   │             └── Img ───── shared per-URL image: XHR loader, RAM
+   │                           accounting, texture charge tracking
+   │
+   ├── FrameQueue ───── drains requests on rAF ticks within a byte/ms budget,
+   │                    highest priority first, gated by canRender()
+   └── Memory ×2 ────── RAM and GPU-memory ledgers with overflow events
 ```
 
-### Bucket Events
+1. **Load** — the image's compressed bytes are fetched via the network queue
+   (bounded concurrency, retry with linear backoff, hard timeout).
+2. **Decode (Stage A, off-screen safe)** — bytes become a RAM bitmap ahead of
+   time, so the eventual paint doesn't pay the decode stall.
+3. **Warm (Stage B, paced)** — the FrameQueue hands requests to a renderer a
+   few per frame. The default renderer paints a hidden, in-viewport,
+   `opacity: 0.001` div at the exact target size — which forces the GPU
+   texture upload on browsers that only rasterize painted pixels.
+4. **Rendered** — your `rendered` handler paints the real element; the decode
+   and upload have already happened, so the paint is cheap.
+5. **Evict** — when a budget overflows, unlocked/off-screen work is evicted
+   first (LRU-ish, oldest first). Anything `visible`, in a locked bucket, or
+   still loading is never touched. If nothing can be freed you get a
+   `ram-overflow` / `video-overflow` event and the engine keeps going.
+
+### Priorities and virtual lists
+
+Buckets and requests take a `priority` (higher renders first — FIFO within
+equal priority), and priorities are **live**:
 
 ```ts
-export type BucketEventTypes =
-  | 'progress' // image load progress fro entire bucket
-  | 'loadend' // image load end for entire bucket
-  | 'error' // image load error
-  | 'rendered' // when all images are pre-rendered
-  | 'clear' // when bucket is cleared
-  | 'loading' // when bucket is loading images
-  | 'request-rendered' // when image render request is pre-rendered
-  | 'request-loadend' // when image render request is loaded
-  | 'render-progress' // image render progress
-  | 'update' // bucket update - general event
+// the user focused a different rail: it jumps the queue on the next frame
+focusedRail.setPriority(10)
+previousRail.setPriority(0)
 ```
 
-### RenderRequest Events
+Requests can be added and removed **on the go** — a virtual list keeps one
+bucket for its whole life and churns requests through it as slots recycle:
 
 ```ts
-export type RenderRequestEventTypes =
-  | 'rendered' // image pre-rendered
-  | 'clear' // image request cleared
-  | 'loadend' // image request loaded
-  | 'rendering' // image request rendering
-  | 'loadstart' // image request load start
-  | 'progress' // image request load progress
-  | 'error' // image request load error
-  | 'render' // image request render start
+// slot scrolled out of the window
+oldRequest.clear() // releases listeners, queue slot, texture charge
+
+// slot scrolled in — same bucket, immediately schedulable
+const req = new RenderRequest({ bucket: listBucket, url, size })
 ```
 
-### Network Events
+Re-requesting a URL that is still cached costs no network and no decode —
+only a (budgeted) re-warm. Teardown is deterministic: after
+`controller.clear()` every listener, timer, in-flight request and byte of
+accounting is released.
 
-Network instance can be accessed by calling `controller.network` and you can listen to network events as well.
+### Input yield
+
+Warming is background work and must never compete with interaction. Wire
+`canRender` to your input state and/or drive it explicitly:
 
 ```ts
-const loaderEvent: LoaderEventTypes[] = [
-  'loadstart',
-  'progress',
-  'abort',
-  'error',
-  'timeout',
-  'loadend',
-]
+const controller = new Controller({
+  canRender: () => !keyIsDown && !scrollAnimating,
+})
+
+// or imperatively:
+controller.pause() // e.g. on route transition start
+controller.resume() // on idle
 ```
 
-### Memory Events
+While gated, the queue idles at one no-op check per frame and drains as soon
+as the gate opens.
 
-Memory instance can be accessed by calling `controller.ram/gpu` and you can listen to memory events as well.
+The library never attaches input listeners itself — your input layer owns the
+gate, and `canRender` is reassignable at runtime, which makes framework
+wiring trivial:
 
 ```ts
-export type MemoryEventTypes =
-  | 'overflow'
-  | 'clear'
-  | 'bytes-added'
-  | 'bytes-removed'
-  | 'cleared'
-  | 'update'
+// e.g. a React hook
+useEffect(() => {
+  controller.canRender = () => !isNavigatingRef.current
+}, [controller])
 ```
 
-## LICENSE
+### Runtime budget changes
 
-MIT
+Budgets are live too — a common TV pattern is shrinking image memory while
+media playback needs the GPU:
 
-## Acknowledgments
+```ts
+player.on('play', () => controller.setVideoBudget(toBytes(64, 'MB')))
+player.on('stop', () => controller.setVideoBudget(toBytes(240, 'MB')))
+```
 
-Thanks to [Oregan Networks](https://oregan.net/) for sponsoring this project! 🎉🎉🎉
+Shrinking a budget evicts unlocked work immediately (visible/locked work
+survives; if the new budget still overflows you get the overflow event).
+Growing a budget simply gives new work more headroom. The per-frame warm
+budget is adjustable as well: `controller.frameQueue.frameBudget.bytes = n`.
 
-## PS
+## API
 
-[![Li](https://badgen.net/badge/Hit%20me%20up%20on/LI?color=blue)](https://www.linkedin.com/in/samvel-avanesov)
+### `new Controller(props)`
 
-Enjoy! 🎉🎉🎉
+| Option        | Type                        | Default             | Description                                                        |
+| ------------- | --------------------------- | ------------------- | ------------------------------------------------------------------ |
+| `ram`         | `number`                    | `2`                 | RAM budget, in `units` (compressed bytes + decoded bitmaps)        |
+| `video`       | `number`                    | `1`                 | GPU-memory budget, in `units` (uploaded textures)                  |
+| `units`       | `'BYTE'\|'KB'\|'MB'\|'GB'…` | `'GB'`              | Unit for both budgets                                              |
+| `loaders`     | `number`                    | `6`                 | Parallel network loads                                             |
+| `frameBudget` | `{ bytes?, ms? }`           | `1 MiB / 8 ms`      | Per-frame warm budget (at least one request per frame always runs) |
+| `hwRank`      | `number` 0–1                | `1`                 | Budget scalar for slower hardware (0.5 → half budget per frame)    |
+| `canRender`   | `() => boolean`             | —                   | Input-yield gate; `false` pauses warming for the frame             |
+| `renderer`    | `Renderer`                  | hidden-div pre-warm | Injectable warm strategy (see below)                               |
+| `gpuDataFull` | `boolean`                   | `false`             | Textures are full-image-sized regardless of request size           |
+| `logLevel`    | `'none'…'verbose'`          | `'error'`           | Console logging level                                              |
+
+Methods: `getImage(props)`, `pause()`, `resume()`, `clear()`,
+`setRamBudget(size)`, `setVideoBudget(size)`, `canRender` (get/set),
+`getRequestsStats()`. Events: `ram-overflow`, `video-overflow`,
+`image-added`, `image-removed`, `render-request-added`,
+`render-request-removed`, `update`, `clear`.
+
+### `new Bucket({ controller, name?, lock?, priority?, videoBudget? })`
+
+Groups requests for one UI region. `lock: true` exempts every request from
+eviction. `setPriority(n)` re-prioritizes all of its requests live.
+
+Buckets also gate and budget their own work:
+
+- `pause()` / `resume()` — pause warming for THIS bucket only (others keep
+  rendering; its queued requests are skipped, never blocking). Loading
+  continues — only the GPU work is deferred.
+- `videoBudget` (+ `setVideoBudget(n)`) — an optional per-bucket GPU cap in
+  controller units: over the cap, the bucket evicts its own oldest unlocked
+  warms (the global video budget still applies on top). Emits
+  `video-overflow` when the cap cannot be honored. There is deliberately no
+  per-bucket RAM cap — images are shared across buckets by URL, so the
+  global RAM budget owns that.
+
+Aggregates: `loaded`, `loading`, `rendered`, `loadProgress`,
+`getRamBytes()`, `getVideoBytes()` (+ `…Units()` variants).
+Events: `progress`, `loadend`, `rendered`, `render-progress`,
+`request-rendered`, `error`, `update`, `clear`, `pause`, `resume`,
+`video-overflow`.
+
+### `new RenderRequest({ bucket, url, size, priority? })`
+
+One image at one size. **Pass `size` whenever you know it** (your backend
+usually does): it skips the header-sniffing decoders entirely — they're
+lazily loaded and stay out of your bundle's hot path.
+
+Fields/methods: `rendered`, `visible` (set it for on-screen requests — they
+become unevictable), `setPriority(n)`, `isLocked()`, `clear(force?)`.
+Events: `rendered`, `rendering`, `loadstart`, `progress`, `loadend`,
+`error`, `clear`.
+
+### Renderer strategies
+
+The warm mechanism is injectable — `Controller({ renderer })` receives:
+
+```ts
+type Renderer = (context: { target: RenderRequest; done: () => void }) => void
+```
+
+Two strategies matter in practice:
+
+- **Hidden-div pre-warm (default)** — paints a hidden in-viewport div at the
+  target size, holds it for two frames, calls `done()`. Warms textures for
+  elements that aren't mounted yet (ahead-of-scroll). Relies on the browser
+  reusing the decoded texture across nodes for the same URL+size.
+- **Reveal-gate (bring your own)** — for frameworks: keep the real element
+  unpainted (no `background-image` yet), and flip it on in your renderer,
+  calling `done()` on the next frame. The upload happens on the real node —
+  no cross-node cache assumption. This is the natural strategy for a React
+  binding.
+
+### Typed events
+
+Every class is a strict typed emitter — event names and payloads are checked
+end to end:
+
+```ts
+controller.on('ram-overflow', ({ bytes }) => telemetry.count('ram_oom', bytes))
+bucket.on('render-progress', ({ progress }) => setSpinner(progress < 1))
+request.on('error', ({ statusText, status }) => showFallback())
+```
+
+## Embedded browsers (smart TV / STB / Cobalt)
+
+This library was built to fix a measured problem on Cobalt (the Chrome-88
+class browser powering many TV devices), and its scheduling model is designed
+around that platform's constraints:
+
+- Pacing is **rAF-based** — `setTimeout(0)` floors at ~41 ms on Cobalt, which
+  makes timer-based pacing useless there.
+- The default renderer keeps its warm layer **in-viewport with non-zero
+  opacity** — Cobalt only rasterizes painted pixels; off-screen or
+  `opacity: 0` warming silently does nothing.
+- No `queueMicrotask`, `URLSearchParams`, `Element.remove()` or ES-module
+  assumptions in the library code.
+
+Shipping your _app_ to such a device? The [demo](demo/) is a working
+reference: it ships a `nomodule`/SystemJS legacy bundle
+(`@vitejs/plugin-legacy`, no core-js), an iterator shim, and an on-screen
+error overlay — see [`demo/index.html`](demo/index.html) and
+[`vite.config.demo.ts`](vite.config.demo.ts).
+
+## Demo
+
+**Live: <https://savanesoff.github.io/image-cache-pro/>**
+
+The demo drives the real engine over rails of posters with every stat on
+screen (budgets, per-rail progress, queue depth, fps), keyboard/RCU
+navigation, and a `?mode=stampede` baseline so you can feel the difference.
+Live knobs: `1/2` halve/double the RAM budget, `3/4` the video budget,
+`5/6` the per-frame warm budget, and `A` adds a whole rail on the fly —
+watch evicted cards dim out as budgets shrink. Useful query params:
+`rails`, `cards`, `ram`, `video`, `budget`, `hwrank`, `img`, `mode`.
+
+```sh
+pnpm dev            # serve the demo locally
+pnpm run test:e2e   # Playwright suite over the demo
+```
+
+## Development
+
+```sh
+pnpm install
+pnpm test           # unit tests (Vitest, 339 tests)
+pnpm run test:e2e   # end-to-end (Playwright over the demo)
+pnpm lint           # prettier + eslint (type-checked)
+pnpm run type-check # tsc --noEmit
+pnpm run build      # ESM + CJS + .d.ts into dist/
+```
+
+The engine is fully unit-tested with deterministic fake frames — including
+memory-pressure suites that verify eviction order, locked-work survival and
+post-OOM recovery, and a virtual-scroll lifecycle suite that churns requests
+through a live bucket and asserts zero leaked bytes.
+
+## License
+
+[MIT](LICENSE) — © [Samvel Avanesov](https://www.linkedin.com/in/samvel-avanesov)
+
+Sponsored by [Oregan Networks](https://oregan.net/). Built with love for
+every device that ever dropped a frame painting a poster wall. 🎬

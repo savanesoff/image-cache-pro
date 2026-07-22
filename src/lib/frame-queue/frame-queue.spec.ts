@@ -1,162 +1,331 @@
-import { Bucket } from '@lib/bucket'
-import { Img, Size } from '@lib/image'
-import { RenderRequest } from '@lib/request'
+import { type RenderRequest } from '@lib/request'
 import { FrameQueue } from './frame-queue'
-vi.useFakeTimers()
 
-vi.mock('@lib/request')
-vi.mock('@lib/image')
-vi.mock('@lib/controller')
+/**
+ * Deterministic rAF: callbacks are captured and fired manually per "frame".
+ */
+let frameCallbacks: (() => void)[] = []
 
-const imageSize = () => ({
-  width: Math.round(Math.random() * 100),
-  height: Math.round(Math.random() * 100),
-})
-
-const createRequest = ({ url = 'test' } = {}) => {
-  const img = new Img({ url })
-  // @ts-expect-error - readonly
-  img.url = url
-  img.bytesUncompressed = Math.round(Math.random() * 100)
-
-  const request = new RenderRequest({
-    size: {} as unknown as Size,
-    bucket: {} as unknown as Bucket,
-    url,
-  })
-  request.image = img
-  request.size = imageSize()
-  request.onRendered = vi.fn()
-  request.onProcessing = vi.fn()
-  return request
+const tickFrame = () => {
+  const callbacks = frameCallbacks
+  frameCallbacks = []
+  callbacks.forEach(cb => cb())
 }
 
-const hwRank = Math.random()
+type FakeRequestProps = {
+  priority?: number
+  bytesUncompressed?: number
+  decoded?: boolean
+}
+
+/** Minimal duck-typed RenderRequest — the queue only reads cost + priority */
+const createRequest = ({
+  priority = 0,
+  bytesUncompressed = 1000,
+  decoded = false,
+}: FakeRequestProps = {}) => {
+  const request = {
+    priority,
+    bytesVideo: bytesUncompressed,
+    size: { width: 10, height: 10 },
+    render: vi.fn(),
+    image: {
+      bytesUncompressed,
+      isDecoded: () => decoded,
+      url: 'test-url',
+    },
+  }
+  return request as unknown as RenderRequest
+}
+
+beforeEach(() => {
+  frameCallbacks = []
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback): number =>
+    frameCallbacks.push(() => cb(0)),
+  )
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.clearAllMocks()
+})
 
 describe('FrameQueue', () => {
-  let queue: FrameQueue
+  describe('constructor', () => {
+    it('should be defined with defaults', () => {
+      const queue = new FrameQueue({})
+      expect(queue).toBeDefined()
+      expect(queue.hwRank).toBe(1)
+      expect(queue.frameBudget).toEqual(FrameQueue.defaultBudget)
+    })
 
-  beforeEach(() => {
-    queue = new FrameQueue({ hwRank })
-  })
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-  it('should be defined', () => {
-    expect(queue).toBeDefined()
-  })
+    it('should clamp hwRank to [0, 1]', () => {
+      expect(new FrameQueue({ hwRank: 2 }).hwRank).toBe(1)
+      expect(new FrameQueue({ hwRank: -1 }).hwRank).toBe(0)
+    })
 
-  it('should have queue', () => {
-    expect(queue.queue).toBeDefined()
-  })
-
-  it('should have hwRank', () => {
-    expect(queue.hwRank).toBe(hwRank)
-  })
-
-  it('should not have first request in queue', () => {
-    const request = createRequest()
-    queue.add(request)
-    expect(queue.queue).toHaveLength(0)
-  })
-  it('should emit request-added event', () => {
-    const spy = vi.fn()
-    queue.on('request-added', spy)
-    const request = createRequest()
-    queue.add(request)
-    expect(spy).toHaveBeenCalledWith({
-      type: 'request-added',
-      target: queue,
-      request,
+    it('should accept a partial frame budget', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 5000 } })
+      expect(queue.frameBudget.bytes).toBe(5000)
+      expect(queue.frameBudget.ms).toBe(FrameQueue.defaultBudget.ms)
     })
   })
 
-  it('should call request.onProcessing before processing', () => {
-    const request = createRequest()
-    queue.add(request)
-    expect(request.onProcessing).toHaveBeenCalled()
-  })
-
-  it('should render first request immediately', () => {
-    const request = createRequest()
-    const spy = vi.spyOn(queue, 'renderer')
-    queue.add(request)
-    expect(spy).toHaveBeenCalledWith({
-      request,
-      renderTime: expect.any(Number),
+  describe('add', () => {
+    it('should emit request-added', () => {
+      const queue = new FrameQueue({})
+      const spy = vi.fn()
+      queue.on('request-added', spy)
+      const request = createRequest()
+      queue.add(request)
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'request-added', request }),
+      )
     })
-  })
-  it('should process first request immediately', () => {
-    const url = Math.random().toString()
-    const request = createRequest({ url })
-    const spy = vi.spyOn(document.body, 'appendChild')
-    queue.add(request)
-    expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        style: expect.objectContaining({
-          backgroundImage: `url(${url})`,
-        }),
-      }),
-    )
-  })
 
-  it('should call request.onRendered after processing', () => {
-    const request = createRequest()
-    queue.add(request)
-    vi.runAllTimers()
-    expect(request.onRendered).toHaveBeenCalled()
-  })
+    it('should ignore duplicate adds', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      queue.add(request)
+      queue.add(request)
+      expect(queue.size).toBe(1)
+    })
 
-  it('should add next callbacks to the queue', () => {
-    queue.add(createRequest())
-    queue.add(createRequest())
-    expect(queue.queue).toHaveLength(1)
-  })
+    it('should not render synchronously', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      queue.add(request)
+      expect(request.render).not.toHaveBeenCalled()
+    })
 
-  it('should process the queue in the correct order', () => {
-    const request = createRequest()
-    const request2 = createRequest()
-
-    queue.add(request)
-    queue.add(request2)
-
-    expect(request.onProcessing).toHaveBeenCalledTimes(1)
-    expect(request2.onProcessing).toHaveBeenCalledTimes(0)
-
-    vi.runAllTimers()
-
-    expect(request.onProcessing).toHaveBeenCalledTimes(1)
-    expect(request2.onProcessing).toHaveBeenCalledTimes(1)
-  })
-
-  it('should clear queue after processing', () => {
-    queue.add(createRequest())
-    queue.add(createRequest())
-    vi.runAllTimers()
-    expect(queue.queue).toHaveLength(0)
-  })
-
-  it('should call render with correct render time', () => {
-    const request = createRequest()
-    const renderTime =
-      (request.image.bytesUncompressed / FrameQueue.bytesPerFrameRatio) *
-      (1 - hwRank)
-    const spy = vi.spyOn(queue, 'renderer')
-    queue.add(request)
-    expect(spy).toHaveBeenCalledWith({
-      request,
-      renderTime,
+    it('should render on the next frame', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      queue.add(request)
+      tickFrame()
+      expect(request.render).toHaveBeenCalledTimes(1)
+      expect(queue.size).toBe(0)
     })
   })
 
-  it('should use provided renderer', () => {
-    const renderer = vi.fn()
-    queue = new FrameQueue({ hwRank, renderer })
-    const request = createRequest()
-    queue.add(request)
-    expect(renderer).toHaveBeenCalledWith({
-      request,
-      renderTime: expect.any(Number),
+  describe('remove', () => {
+    it('should drop a pending request without rendering it', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      queue.add(request)
+      queue.remove(request)
+      tickFrame()
+      expect(request.render).not.toHaveBeenCalled()
+      expect(queue.size).toBe(0)
+    })
+  })
+
+  describe('per-frame budget', () => {
+    it('should stop at the byte budget and continue next frame', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 1000, ms: 1000 } })
+      const first = createRequest({ bytesUncompressed: 600 })
+      const second = createRequest({ bytesUncompressed: 600 })
+      queue.add(first)
+      queue.add(second)
+
+      tickFrame()
+      expect(first.render).toHaveBeenCalledTimes(1)
+      expect(second.render).not.toHaveBeenCalled()
+
+      tickFrame()
+      expect(second.render).toHaveBeenCalledTimes(1)
+    })
+
+    it('should always process at least one request per frame', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 10, ms: 1000 } })
+      const huge = createRequest({ bytesUncompressed: 1_000_000 })
+      queue.add(huge)
+      tickFrame()
+      expect(huge.render).toHaveBeenCalledTimes(1)
+    })
+
+    it('should treat decoded requests as zero-cost', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 1000, ms: 1000 } })
+      const requests = Array.from({ length: 5 }, () =>
+        createRequest({ bytesUncompressed: 5000, decoded: true }),
+      )
+      requests.forEach(request => queue.add(request))
+      tickFrame()
+
+      for (const request of requests) {
+        expect(request.render).toHaveBeenCalledTimes(1)
+      }
+    })
+
+    it('should scale the budget by hwRank', () => {
+      const queue = new FrameQueue({
+        hwRank: 0.5,
+        frameBudget: { bytes: 1000, ms: 1000 },
+      })
+      // scaled budget = 500 bytes
+      const first = createRequest({ bytesUncompressed: 300 })
+      const second = createRequest({ bytesUncompressed: 300 })
+      queue.add(first)
+      queue.add(second)
+      tickFrame()
+      expect(first.render).toHaveBeenCalledTimes(1)
+      expect(second.render).not.toHaveBeenCalled()
+    })
+
+    it('should emit processed with counts', () => {
+      const queue = new FrameQueue({})
+      const spy = vi.fn()
+      queue.on('processed', spy)
+      queue.add(createRequest())
+      tickFrame()
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ processed: 1, pending: 0 }),
+      )
+    })
+  })
+
+  describe('priority', () => {
+    it('should render higher priority first regardless of add order', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 1, ms: 1000 } })
+      const low = createRequest({ priority: 0, bytesUncompressed: 100 })
+      const high = createRequest({ priority: 10, bytesUncompressed: 100 })
+      queue.add(low)
+      queue.add(high)
+
+      tickFrame()
+      expect(high.render).toHaveBeenCalledTimes(1)
+      expect(low.render).not.toHaveBeenCalled()
+
+      tickFrame()
+      expect(low.render).toHaveBeenCalledTimes(1)
+    })
+
+    it('should keep FIFO order within the same priority', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 1, ms: 1000 } })
+      const order: string[] = []
+      const first = createRequest({ bytesUncompressed: 100 })
+      const second = createRequest({ bytesUncompressed: 100 })
+      vi.mocked(first.render).mockImplementation(() => {
+        order.push('first')
+      })
+      vi.mocked(second.render).mockImplementation(() => {
+        order.push('second')
+      })
+      queue.add(first)
+      queue.add(second)
+      tickFrame()
+      tickFrame()
+      expect(order).toEqual(['first', 'second'])
+    })
+  })
+
+  describe('canRender gate (input yield)', () => {
+    it('should idle while the gate is closed and resume when open', () => {
+      let busy = true
+      const queue = new FrameQueue({ canRender: () => !busy })
+      const request = createRequest()
+      queue.add(request)
+
+      tickFrame()
+      expect(request.render).not.toHaveBeenCalled()
+
+      tickFrame()
+      expect(request.render).not.toHaveBeenCalled()
+
+      busy = false
+      tickFrame()
+      expect(request.render).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('pause / resume', () => {
+    it('should not process while paused', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      queue.pause()
+      queue.add(request)
+      tickFrame()
+      expect(request.render).not.toHaveBeenCalled()
+      expect(queue.paused).toBe(true)
+    })
+
+    it('should resume processing on the next frame', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      queue.pause()
+      queue.add(request)
+      tickFrame()
+      queue.resume()
+      tickFrame()
+      expect(request.render).toHaveBeenCalledTimes(1)
+    })
+
+    it('should emit pause and resume events', () => {
+      const queue = new FrameQueue({})
+      const pauseSpy = vi.fn()
+      const resumeSpy = vi.fn()
+      queue.on('pause', pauseSpy)
+      queue.on('resume', resumeSpy)
+      queue.pause()
+      queue.resume()
+      expect(pauseSpy).toHaveBeenCalledTimes(1)
+      expect(resumeSpy).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('requeue (dynamic priority)', () => {
+    it('should re-sort a pending request after its priority changes', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 1, ms: 1000 } })
+      const first = createRequest({ priority: 0, bytesUncompressed: 100 })
+      const second = createRequest({ priority: 0, bytesUncompressed: 100 })
+      queue.add(first)
+      queue.add(second)
+
+      // bump the later request above the earlier one
+      ;(second as { priority: number }).priority = 5
+      queue.requeue(second)
+
+      tickFrame()
+      expect(second.render).toHaveBeenCalledTimes(1)
+      expect(first.render).not.toHaveBeenCalled()
+    })
+
+    it('should ignore requeue for requests that are not queued', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      expect(() => queue.requeue(request)).not.toThrow()
+      expect(queue.size).toBe(0)
+    })
+  })
+
+  describe('on-the-go additions', () => {
+    it('should accept new requests while draining and process them next frame', () => {
+      const queue = new FrameQueue({ frameBudget: { bytes: 1, ms: 1000 } })
+      const late = createRequest({ bytesUncompressed: 100 })
+      const first = createRequest({ bytesUncompressed: 100 })
+      vi.mocked(first.render).mockImplementation(() => {
+        queue.add(late) // a virtual list adding work mid-frame
+      })
+      queue.add(first)
+
+      tickFrame()
+      expect(first.render).toHaveBeenCalledTimes(1)
+      expect(late.render).not.toHaveBeenCalled()
+
+      tickFrame()
+      expect(late.render).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('clear', () => {
+    it('should drop all pending requests', () => {
+      const queue = new FrameQueue({})
+      const request = createRequest()
+      queue.add(request)
+      queue.clear()
+      tickFrame()
+      expect(request.render).not.toHaveBeenCalled()
+      expect(queue.size).toBe(0)
     })
   })
 })

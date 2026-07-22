@@ -15,9 +15,18 @@
  * logger.log.error(["This is an error log"]); // Log at the error level
  */
 
-import { EventEmitter } from 'events'
+import { Emitter, type EventMap } from '@lib/emitter'
 
 export type LogLevel = 'none' | 'verbose' | 'info' | 'warn' | 'error'
+
+/** Numeric severity: a message logs when its level <= the logger's level */
+const LOG_PRIORITY: Record<LogLevel, number> = {
+  none: 0,
+  error: 1,
+  warn: 2,
+  info: 3,
+  verbose: 4,
+}
 type DataType = unknown
 type ConsoleType = 'log' | 'info' | 'error' | 'warn'
 type Styles = {
@@ -36,7 +45,9 @@ export type LoggerProps = {
   styles?: Styles
 }
 
-export class Logger extends EventEmitter {
+export class Logger<
+  Events extends EventMap = EventMap,
+> extends Emitter<Events> {
   level: LogLevel = 'none'
   name = 'Logger'
   readonly styles: Styles = {
@@ -45,14 +56,6 @@ export class Logger extends EventEmitter {
     warn: 'color: orange;',
     error: 'color: red;',
   }
-
-  private readonly levelGates = {
-    verbose: 'verbose',
-    info: 'info, verbose',
-    warn: 'warn, info, verbose',
-    error: 'error, warn, info, verbose',
-  }
-
   /** Log methods */
   readonly log = {
     /** Log a verbose message */
@@ -68,12 +71,11 @@ export class Logger extends EventEmitter {
   /**
    * Creates a new Logger instance.
    */
-  constructor({ logLevel, name, styles }: LoggerProps = {} as LoggerProps) {
+  constructor({ logLevel, name, styles }: LoggerProps = {}) {
     super()
     this.level = logLevel || this.level
     this.name = name || this.name
     this.styles = { ...this.styles, ...styles }
-    this.setMaxListeners(1000)
   }
 
   setLogLevel(level: LogLevel) {
@@ -81,6 +83,8 @@ export class Logger extends EventEmitter {
   }
 
   #console(type: ConsoleType, styles = 'color: white;', data: DataType[]) {
+    // The Logger is the one sanctioned console consumer in this lib.
+    // eslint-disable-next-line no-console
     console[type](
       [
         `%c${this.name}:`,
@@ -90,21 +94,32 @@ export class Logger extends EventEmitter {
     )
   }
 
+  /** True when a message of the given level would be logged */
+  logsFor(level: Exclude<LogLevel, 'none'>): boolean {
+    return LOG_PRIORITY[level] <= LOG_PRIORITY[this.level]
+  }
+
   #verbose(data: DataType[], style = this.styles.log) {
-    this.levelGates.verbose.match(this.level) &&
+    if (this.logsFor('verbose')) {
       this.#console('log', style, data)
+    }
   }
 
   #info(data: DataType[], style = this.styles.info) {
-    this.levelGates.info.match(this.level) && this.#console('info', style, data)
+    if (this.logsFor('info')) {
+      this.#console('info', style, data)
+    }
   }
 
   #warn(data: DataType[], style = this.styles.warn) {
-    this.levelGates.warn.match(this.level) && this.#console('warn', style, data)
+    if (this.logsFor('warn')) {
+      this.#console('warn', style, data)
+    }
   }
 
   #error(data: DataType[], style = this.styles.error) {
-    this.levelGates.error.match(this.level) &&
+    if (this.logsFor('error')) {
       this.#console('error', style, data)
+    }
   }
 }

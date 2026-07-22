@@ -1,10 +1,14 @@
-import tsconfigPaths from 'vite-tsconfig-paths'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     globals: true,
     environment: 'jsdom',
+    include: ['src/**/*.{test,spec}.ts'],
+    // Playwright owns tests/e2e
+    exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
   },
 })

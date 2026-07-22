@@ -1,8 +1,8 @@
 import { Bucket } from '@lib/bucket'
 import { Controller } from '@lib/controller'
 import { FrameQueue } from '@lib/frame-queue'
-import { Img, ImgEvent, ImgEventTypes } from '@lib/image'
-import { Size } from '@utils'
+import { Img, type ImgEvent, type ImgEventTypes } from '@lib/image'
+import { type Size } from '@utils'
 import { RenderRequest } from './render-request'
 
 vi.mock('@lib/image')
@@ -38,10 +38,12 @@ const createImage = ({
     },
   )
   image.loaded = imageLoaded || false
+  image.gotSize = imageLoaded || false
   // @ts-expect-error - mock api
   image.getBytesVideo.mockReturnValue(mockBytesVideo)
   return image
 }
+
 const createBucket = ({
   url = 'test',
   imageLoaded,
@@ -58,6 +60,7 @@ const createBucket = ({
   controller.frameQueue = frameQueue
   const bucket = new Bucket({ name: 'test', controller })
   bucket.controller = controller
+  bucket.priority = 0
   // @ts-expect-error - mock api
   bucket.controller.getImage.mockImplementation(() => image)
   return bucket
@@ -244,6 +247,29 @@ describe('RenderRequest', () => {
         'error',
         expect.any(Function),
       )
+    })
+  })
+
+  describe('setPriority', () => {
+    it('should default to the bucket priority', () => {
+      const bucket = createBucket()
+      bucket.priority = 7
+      const request = createRequest({ bucket })
+      expect(request.priority).toBe(7)
+    })
+
+    it('should requeue on the frame queue when the priority changes', () => {
+      const request = createRequest()
+      request.setPriority(9)
+      expect(request.priority).toBe(9)
+      expect(request.frameQueue.requeue).toHaveBeenCalledWith(request)
+    })
+
+    it('should be a no-op when the priority is unchanged', () => {
+      const request = createRequest()
+      const initial = request.priority
+      request.setPriority(initial)
+      expect(request.frameQueue.requeue).not.toHaveBeenCalled()
     })
   })
 

@@ -11,11 +11,11 @@
  * which involves adding or removing the `RenderRequest` from the set,
  * subscribing or unsubscribing to the "rendered" event, and adding or removing the image from the set of images.
  */
-import { Controller } from '@lib/controller'
-import { Img } from '@lib/image'
+import { type Controller } from '@lib/controller'
+import { type Img } from '@lib/image'
 import { Logger } from '@lib/logger'
-import { RenderRequest, RenderRequestEvent } from '@lib/request'
-import { now, UNITS, UnitsType } from '@utils'
+import { type RenderRequest, type RenderRequestEvent } from '@lib/request'
+import { now, UNITS, type UnitsType } from '@utils'
 
 export type BucketEventTypes =
   | 'progress'
@@ -24,10 +24,13 @@ export type BucketEventTypes =
   | 'rendered'
   | 'clear'
   | 'loading'
+  | 'pause'
+  | 'resume'
   | 'request-rendered'
   | 'request-loadend'
   | 'render-progress'
   | 'update'
+  | 'video-overflow'
 
 type ProgressEvent = {
   /** The progress of the loading operation */
@@ -105,17 +108,37 @@ export type BucketEvent<T extends BucketEventTypes> = {
   (T extends 'request-rendered' ? RequestRenderedEvent : unknown) &
   (T extends 'request-loadend' ? RequestLoadEndEvent : unknown) &
   (T extends 'loading' ? { request: RenderRequest } : unknown) &
-  (T extends 'update' ? { requests: number; images: number } : unknown)
+  (T extends 'update' ? { requests: number; images: number } : unknown) &
+  (T extends 'video-overflow' ? { bytes: number } : unknown)
 
 export type BucketEventHandler<T extends BucketEventTypes> = (
   event: BucketEvent<T>,
 ) => void
+
+/** Strict event map for the Bucket (see Emitter) */
+export type BucketEventMap = {
+  [K in BucketEventTypes]: BucketEvent<K>
+}
 
 export interface BucketProps {
   /** The name of the bucket */
   name?: string
   /** Whether the bucket is locked */
   lock?: boolean
+  /**
+   * Scheduling priority for this bucket's render requests. Higher renders
+   * first (e.g. focused/visible rail: 1, off-screen rails: 0). Requests may
+   * override it individually.
+   */
+  priority?: number
+  /**
+   * Optional GPU-memory cap for THIS bucket, in the controller's units.
+   * When the bucket's rendered warms exceed it, its own oldest unlocked
+   * requests are evicted (the global video budget still applies on top).
+   * There is deliberately no per-bucket RAM cap: images are shared across
+   * buckets by URL, so per-bucket RAM would be ill-defined.
+   */
+  videoBudget?: number
   /** The controller instance */
   controller: Controller
 }
@@ -125,29 +148,107 @@ export interface BucketProps {
  * Emits events when images are loaded, when the bucket is cleared, and when the bucket is rendered.
  * Also tracks the loading state of the bucket and the progress of the loading operation.
  */
-export class Bucket extends Logger {
+export class Bucket extends Logger<BucketEventMap> {
   readonly requests = new Set<RenderRequest>()
-  readonly videoMemory = new Map<string, Set<Img>>()
+  /** Unique images referenced by this bucket's requests, refcounted */
+  readonly #imageRefs = new Map<Img, number>()
   static bucketNumber = 0
   rendered = false
   loading = false
   loaded = false
   loadProgress = 0
-  timeout = 0
   controller: Controller
   locked: boolean
+  /** Scheduling priority inherited by this bucket's render requests */
+  priority: number
+  #paused = false
+  /** Per-bucket GPU cap in bytes (null = uncapped) */
+  #videoBudgetBytes: number | null = null
 
-  constructor({ name, lock = false, controller }: BucketProps) {
+  constructor({
+    name,
+    lock = false,
+    priority = 0,
+    videoBudget,
+    controller,
+  }: BucketProps) {
     super({
       name: name || (Bucket.bucketNumber++).toString(),
       logLevel: 'error',
     })
     this.controller = controller
     this.locked = lock
+    this.priority = priority
+
+    if (videoBudget !== undefined) {
+      this.setVideoBudget(videoBudget)
+    }
+  }
+
+  /** True while pause()d — the frame queue skips this bucket's requests */
+  get paused(): boolean {
+    return this.#paused
+  }
+
+  /**
+   * Pauses warming for THIS bucket only (other buckets keep rendering).
+   * Loading continues — decode-ahead is safe off-screen; only the GPU work
+   * is deferred.
+   */
+  pause() {
+    if (this.#paused) return
+    this.#paused = true
+    this.emit('pause')
+  }
+
+  /** Resumes warming for this bucket (wakes the frame queue). */
+  resume() {
+    if (!this.#paused) return
+    this.#paused = false
+    this.emit('resume')
+    this.controller.frameQueue.wake()
+  }
+
+  /**
+   * Sets/changes this bucket's GPU-memory cap at runtime (controller units;
+   * null removes the cap). Over-cap warms are evicted immediately.
+   */
+  setVideoBudget(size: number | null) {
+    this.#videoBudgetBytes =
+      size === null ? null : size * UNITS[this.controller.units]
+    this.#enforceVideoBudget()
+  }
+
+  /**
+   * Evicts this bucket's own oldest unlocked warms while over its cap.
+   * Emits 'video-overflow' when the cap cannot be honored (all locked).
+   */
+  #enforceVideoBudget() {
+    const budget = this.#videoBudgetBytes
+    if (budget === null) return
+    // track `used` locally — rescanning getVideoBytes() per eviction would
+    // make this O(n²)
+    let used = this.getVideoBytes().used
+    if (used <= budget) return
+
+    for (const request of this.requests) {
+      if (used <= budget) break
+      if (!request.rendered || request.isLocked()) continue
+      used -= request.bytesVideo
+      request.clear()
+    }
+
+    if (used > budget) {
+      this.emit('video-overflow', { bytes: used - budget })
+    }
   }
 
   registerRequest(request: RenderRequest) {
     this.requests.add(request)
+    this.#imageRefs.set(
+      request.image,
+      (this.#imageRefs.get(request.image) ?? 0) + 1,
+    )
     request.on('loadstart', this.#onRequestLoadStart)
     request.on('progress', this.#onRequestProgress)
     request.on('error', this.#onRequestError)
@@ -156,12 +257,20 @@ export class Bucket extends Logger {
     request.on('clear', this.#onRequestClear)
     this.emit('update', {
       requests: this.requests.size,
-      images: this.getImages().size,
+      images: this.#imageRefs.size,
     })
   }
 
   #onRequestClear = (event: RenderRequestEvent<'clear'>) => {
     this.requests.delete(event.target)
+    const refs = this.#imageRefs.get(event.target.image) ?? 0
+
+    if (refs <= 1) {
+      this.#imageRefs.delete(event.target.image)
+    } else {
+      this.#imageRefs.set(event.target.image, refs - 1)
+    }
+
     event.target.off('loadstart', this.#onRequestLoadStart)
     event.target.off('progress', this.#onRequestProgress)
     event.target.off('error', this.#onRequestError)
@@ -170,7 +279,7 @@ export class Bucket extends Logger {
     event.target.off('clear', this.#onRequestClear)
     this.emit('update', {
       requests: this.requests.size,
-      images: this.getImages().size,
+      images: this.#imageRefs.size,
     })
   }
 
@@ -197,6 +306,7 @@ export class Bucket extends Logger {
     }
 
     this.emit('request-rendered', { request: event.target })
+    this.#enforceVideoBudget()
     // current render progress
     const progress = renderedRequests / this.requests.size
     this.emit('render-progress', { progress })
@@ -205,7 +315,6 @@ export class Bucket extends Logger {
       this.emit('rendered')
     }
   }
-
   /**
    * Any image load event will reset the loading state
    * @param event
@@ -216,29 +325,25 @@ export class Bucket extends Logger {
     this.rendered = false
     this.emit('loading', { request: event.target })
   }
-
   /**
    * This is expensive and should not be used this way
    * Instead, a getter should be used to calculate the current progress
    * @param event
    */
-  #onRequestProgress = (event: RenderRequestEvent<'progress'>): void => {
+  #onRequestProgress = (_event: RenderRequestEvent<'progress'>): void => {
     this.loaded = false
     this.loading = true
     let progress = 0
-    const images = this.getImages()
-    for (const image of images) {
+
+    for (const image of this.#imageRefs.keys()) {
       progress += image.progress
     }
-    this.loadProgress = progress / images.size
-    this.emit('progress', { progress: this.loadProgress })
-    this.log.verbose([
-      `Progress ${this.name}: ${this.loadProgress}`,
-      'event:',
-      event,
-    ])
-  }
 
+    this.loadProgress = this.#imageRefs.size
+      ? progress / this.#imageRefs.size
+      : 0
+    this.emit('progress', { progress: this.loadProgress })
+  }
   /**
    * When all images are loaded, emit the loaded event
    *
@@ -261,7 +366,6 @@ export class Bucket extends Logger {
       this.log.info([`Loaded ${this.name}`, now()])
     }
   }
-
   /**
    * When an image errors, emit the error event
    * @param event
@@ -307,8 +411,8 @@ export class Bucket extends Logger {
   getRamBytes(): BucketRamBytes {
     let compressedBytes = 0
     let uncompressedBytes = 0
-    const images = this.getImages()
-    for (const image of images) {
+
+    for (const image of this.#imageRefs.keys()) {
       compressedBytes += image.bytes
       uncompressedBytes += image.bytesUncompressed
     }
@@ -349,54 +453,36 @@ export class Bucket extends Logger {
   }
 
   /**
-   * Get all unique images in the bucket
+   * Get all unique images in the bucket (refcounted — O(images) snapshot)
    */
-  getImages() {
-    return new Set(Array.from(this.requests).map(request => request.image))
+  getImages(): Set<Img> {
+    return new Set(this.#imageRefs.keys())
+  }
+
+  /**
+   * Changes this bucket's scheduling priority on the fly — e.g. the focused
+   * rail changed — and applies it to every request in the bucket (pending
+   * requests re-sort in the frame queue immediately).
+   */
+  setPriority(priority: number) {
+    this.priority = priority
+
+    for (const request of this.requests) {
+      request.setPriority(priority)
+    }
   }
 
   //-----------------------   EVENT METHODS   -----------------------
 
   /**
-   * Adds an event listener for the specified event type.
-   * @param event - The type of the event.
-   * @param handler - The event handler function.
-   * @returns The current instance of the Bucket.
-   * @override Logger.on
-   */
-  on<T extends BucketEventTypes>(
-    event: T,
-    handler: BucketEventHandler<T>,
-  ): this {
-    return super.on(event, handler)
-  }
-
-  /**
-   * Removes an event listener for the specified event type.
-   * @param event - The type of the event.
-   * @param handler - The event handler function to remove.
-   * @returns The current instance of the Bucket.
-   * @override Logger.off
-   */
-  off<T extends BucketEventTypes>(
-    event: T,
-    handler: BucketEventHandler<T>,
-  ): this {
-    return super.off(event, handler)
-  }
-
-  /**
-   * Emits an event of the specified type with the specified data.
-   * @param type - The type of the event to emit.
-   * @param data - The data to emit with the event.
-   * @returns True if the event was emitted successfully, false otherwise.
-   * @override Logger.emit
+   * Emits an event, injecting `type` and `target`.
+   * `on`/`off` are inherited fully-typed from the strict Emitter base.
    */
   emit<T extends BucketEventTypes>(
     type: T,
     data?: Omit<BucketEvent<T>, 'target' | 'type'>,
   ): boolean {
-    return super.emit(type, {
+    return this.dispatch(type, {
       ...data,
       type,
       target: this,

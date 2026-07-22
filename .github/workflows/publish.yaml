@@ -1,5 +1,10 @@
 name: Publish
 
+# Direct-publish flow (mirrors onyx-core): merging to main IS the release.
+# CI consumes pending changesets (`changeset version`), commits the bump
+# back to main with [skip ci], then builds, tests and publishes to npm.
+# With no pending changesets the run is a no-op (publish is idempotent).
+
 on:
   push:
     branches:
@@ -9,35 +14,45 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   release:
-    name: Publish
+    name: Version and publish to npm
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
+      # Reads the version from package.json "packageManager"
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.1.4
 
-      - name: Setup Node.js 20.x
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version-file: .nvmrc
           cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install Dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
-      - name: Create Release Pull Request or Publish to NPM
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          publish: pnpm release
+      - name: Version packages (consume changesets)
+        run: pnpm exec changeset version
+
+      - name: Commit version bump back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if git commit -m "chore: version packages [skip ci]"; then
+            git push origin main
+          else
+            echo "No pending changesets — nothing to version."
+          fi
+
+      - name: Build, test and publish
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm release
 
-      # - name: Send a Slack notification if a publish happens
-      #   if: steps.changesets.outputs.published == 'true'
-      #   # You can do something when a publish happens.
-      #   run: my-slack-bot send-notification --message "A new version of ${GITHUB_REPOSITORY} was published!"
+      - name: Push release tags
+        run: git push --tags origin main

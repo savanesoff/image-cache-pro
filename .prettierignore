@@ -1,2 +1,11 @@
 node_modules
 dist
+dist-demo
+coverage
+logs
+playwright-report
+test-results
+pnpm-lock.yaml
+CHANGELOG.md
+demo-assets
+.changeset

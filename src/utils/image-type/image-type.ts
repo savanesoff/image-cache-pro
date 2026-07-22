@@ -30,7 +30,10 @@ export const supportedImageTypes: ImageType[] = [
 export const isSupportedType = (type: string): type is ImageType =>
   supportedImageTypes.includes(type as ImageType)
 
-export const isValidArrayBuffer = (arrayBuffer: ArrayBuffer): boolean =>
+export const isValidArrayBuffer = (
+  arrayBuffer: unknown,
+): arrayBuffer is ArrayBuffer =>
+  arrayBuffer instanceof ArrayBuffer &&
   isSupportedType(getImageType(arrayBuffer))
 
 /**

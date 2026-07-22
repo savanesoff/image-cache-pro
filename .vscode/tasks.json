@@ -1,0 +1,108 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "pnpm build",
+      "icon": { "id": "tools" },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$tsc"],
+      "detail": "Clean + vite build (ESM + CJS + .d.ts).",
+      "options": {
+        "statusbar": { "color": "#22C1D6", "label": "Build" }
+      }
+    },
+    {
+      "label": "Lint",
+      "type": "shell",
+      "command": "pnpm lint",
+      "icon": { "id": "search-fuzzy" },
+      "group": "test",
+      "problemMatcher": ["$eslint-stylish"],
+      "detail": "Prettier check + ESLint.",
+      "options": {
+        "statusbar": { "color": "#22C1D6", "label": "Lint" }
+      }
+    },
+    {
+      "label": "Test",
+      "type": "shell",
+      "command": "pnpm test",
+      "icon": { "id": "beaker" },
+      "group": { "kind": "test", "isDefault": true },
+      "detail": "Run tests with Vitest.",
+      "options": {
+        "statusbar": { "color": "#22d682", "label": "Test" }
+      }
+    },
+    {
+      "label": "Test (watch)",
+      "type": "shell",
+      "command": "pnpm test:watch",
+      "isBackground": true,
+      "icon": { "id": "eye-watch" },
+      "group": "test",
+      "detail": "Vitest in watch mode.",
+      "options": {
+        "statusbar": { "hide": true }
+      }
+    },
+    {
+      "label": "Type Check",
+      "type": "shell",
+      "command": "pnpm run type-check",
+      "icon": { "id": "type-hierarchy" },
+      "group": "test",
+      "problemMatcher": ["$tsc"],
+      "detail": "TypeScript type checking (tsc --noEmit).",
+      "options": {
+        "statusbar": { "color": "#22d682", "label": "TS" }
+      }
+    },
+    {
+      "label": "Format",
+      "type": "shell",
+      "command": "pnpm lint-fix",
+      "icon": { "id": "git-compare" },
+      "group": "build",
+      "detail": "Prettier write + ESLint --fix.",
+      "options": {
+        "statusbar": { "color": "#ca9b3d", "label": "Format" }
+      }
+    },
+    {
+      "label": "Demo",
+      "type": "shell",
+      "command": "pnpm dev --open",
+      "isBackground": true,
+      "icon": { "id": "play-circle" },
+      "group": "build",
+      "detail": "Serve the demo app (vite dev, demo/) and open it in the browser.",
+      "options": {
+        "statusbar": { "color": "#cf6eff", "label": "$(play-circle) Demo" }
+      }
+    },
+    {
+      "label": "E2E",
+      "type": "shell",
+      "command": "pnpm run test:e2e",
+      "icon": { "id": "browser" },
+      "group": "test",
+      "detail": "Playwright end-to-end tests over the demo app.",
+      "options": {
+        "statusbar": { "color": "#22d682", "label": "E2E" }
+      }
+    },
+    {
+      "label": "Clean",
+      "type": "shell",
+      "command": "pnpm run clean:package",
+      "group": "build",
+      "detail": "Remove dist build artifacts.",
+      "options": {
+        "statusbar": { "hide": true }
+      }
+    }
+  ]
+}

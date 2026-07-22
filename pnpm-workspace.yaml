@@ -1,0 +1,4 @@
+allowBuilds:
+  unrs-resolver: true
+  esbuild: true
+  core-js: true

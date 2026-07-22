@@ -2,10 +2,10 @@ import { Controller } from '@lib/controller'
 import { Img } from '@lib/image'
 import {
   RenderRequest,
-  RenderRequestEvent,
-  RenderRequestEventTypes,
+  type RenderRequestEvent,
+  type RenderRequestEventTypes,
 } from '@lib/request'
-import { Size } from '@utils'
+import { type Size } from '@utils'
 import { UNITS } from '@utils'
 import { Bucket } from './bucket'
 
@@ -85,7 +85,7 @@ describe('Bucket', () => {
       expect(createBucket().locked).toBe(false)
     })
 
-    it('should be unlocked', () => {
+    it('should be locked when created with lock:true', () => {
       expect(createBucket({ lock: true }).locked).toBe(true)
     })
 
@@ -184,6 +184,7 @@ describe('Bucket', () => {
         listeners['progress']({
           type: 'progress',
           target: request,
+          progress: 0.5,
         })
         expect(bucket.loaded).toBe(false)
       })
@@ -192,6 +193,7 @@ describe('Bucket', () => {
         listeners['progress']({
           type: 'progress',
           target: request,
+          progress: 0.5,
         })
         expect(bucket.loading).toBe(true)
       })
@@ -203,6 +205,7 @@ describe('Bucket', () => {
         listeners['progress']({
           type: 'progress',
           target: request,
+          progress: 0.5,
         })
         // combined progress of all requests
         expect(bucket.loadProgress).toBe(75)
@@ -214,6 +217,7 @@ describe('Bucket', () => {
         listeners['progress']({
           type: 'progress',
           target: request,
+          progress: 0.5,
         })
         expect(spy).toHaveBeenCalledWith({
           type: 'progress',
@@ -327,6 +331,7 @@ describe('Bucket', () => {
         listeners['rendered']({
           type: 'rendered',
           target: request,
+          url: 'test-url',
         })
         expect(bucket.rendered).toBe(true)
       })
@@ -339,6 +344,7 @@ describe('Bucket', () => {
         listeners['rendered']({
           type: 'rendered',
           target: request,
+          url: 'test-url',
         })
         expect(bucket.rendered).toBe(false)
       })
@@ -350,6 +356,7 @@ describe('Bucket', () => {
         listeners['rendered']({
           type: 'rendered',
           target: request,
+          url: 'test-url',
         })
         expect(spy).toHaveBeenCalledWith({
           type: 'request-rendered',
@@ -369,6 +376,7 @@ describe('Bucket', () => {
         listeners['rendered']({
           type: 'rendered',
           target: request,
+          url: 'test-url',
         })
         expect(spy).toHaveBeenCalledWith({
           type: 'render-progress',
@@ -385,6 +393,7 @@ describe('Bucket', () => {
         listeners['rendered']({
           type: 'rendered',
           target: request,
+          url: 'test-url',
         })
         expect(spy).toHaveBeenCalledWith({
           type: 'rendered',
@@ -394,31 +403,65 @@ describe('Bucket', () => {
     })
   })
 
-  describe('unregisterRequest', () => {
-    let bucket: Bucket
-    let request: RenderRequest
-    beforeEach(() => {
-      bucket = createBucket()
-      request = createRequest()
-      bucket.registerRequest(request)
+  describe('setPriority', () => {
+    it('should apply the new priority to every request in the bucket', () => {
+      const bucket = createBucket()
+      const first = createRequest()
+      const second = createRequest()
+      first.setPriority = vi.fn()
+      second.setPriority = vi.fn()
+      bucket.registerRequest(first)
+      bucket.registerRequest(second)
+
+      bucket.setPriority(5)
+
+      expect(bucket.priority).toBe(5)
+      expect(first.setPriority).toHaveBeenCalledWith(5)
+      expect(second.setPriority).toHaveBeenCalledWith(5)
     })
-    it('should unregister the request', () => {
-      bucket.unregisterRequest(request)
-      expect(bucket.requests).not.toContain(request)
+  })
+
+  describe('image refcounting', () => {
+    it('should count unique images across requests', () => {
+      const bucket = createBucket()
+      const shared = createImage({ url: 'shared' })
+      const first = createRequest()
+      const second = createRequest()
+      first.image = shared
+      second.image = shared
+      bucket.registerRequest(first)
+      bucket.registerRequest(second)
+      expect(bucket.getImages().size).toBe(1)
     })
 
-    it('should unregister request listeners', () => {
-      request.clear = vi.fn()
-      request.off = vi.fn()
-      bucket.unregisterRequest(request)
-      expect(request.off).toHaveBeenCalledWith(
-        'loadstart',
-        expect.any(Function),
-      )
-      expect(request.off).toHaveBeenCalledWith('progress', expect.any(Function))
-      expect(request.off).toHaveBeenCalledWith('error', expect.any(Function))
-      expect(request.off).toHaveBeenCalledWith('loadend', expect.any(Function))
-      expect(request.off).toHaveBeenCalledWith('rendered', expect.any(Function))
+    it('should keep the image until the last request referencing it clears', () => {
+      const listenersA = {} as Listeners
+      const listenersB = {} as Listeners
+      const bucket = createBucket()
+      const shared = createImage({ url: 'shared' })
+      const first = createRequest({ listeners: listenersA })
+      const second = createRequest({ listeners: listenersB })
+      first.image = shared
+      second.image = shared
+      bucket.registerRequest(first)
+      bucket.registerRequest(second)
+
+      listenersA['clear']({ type: 'clear', target: first })
+      expect(bucket.getImages().size).toBe(1)
+
+      listenersB['clear']({ type: 'clear', target: second })
+      expect(bucket.getImages().size).toBe(0)
+    })
+  })
+
+  describe('request clear unregisters from bucket', () => {
+    it('should remove the request from the bucket on clear event', () => {
+      const listeners = {} as Listeners
+      const bucket = createBucket()
+      const request = createRequest({ listeners })
+      bucket.registerRequest(request)
+      listeners['clear']({ type: 'clear', target: request })
+      expect(bucket.requests).not.toContain(request)
     })
   })
 

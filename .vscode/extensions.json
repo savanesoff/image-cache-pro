@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "EditorConfig.EditorConfig",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "vitest.explorer",
+    "actboy168.tasks",
+    "mylesmurphy.prettify-ts",
+    "streetsidesoftware.code-spell-checker",
+    "github.vscode-pull-request-github",
+    "github.vscode-github-actions"
+  ]
+}

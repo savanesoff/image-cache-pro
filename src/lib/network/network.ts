@@ -5,19 +5,30 @@
  * and it emits events to indicate the progress of the loading process.
  * It also limits the number of concurrent loaders to avoid overloading the network.
  */
-import { LoaderEventTypes, Loader, LoaderEvent } from '@lib/loader'
-import { Logger, LogLevel } from '@lib/logger'
+import {
+  type LoaderEventTypes,
+  type Loader,
+  type LoaderEvent,
+} from '@lib/loader'
+import { Logger, type LogLevel } from '@lib/logger'
 
 export type NetworkEventTypes = LoaderEventTypes | 'pause' | 'resume'
 
-type NetworkEvent<T extends NetworkEventTypes> = {
-  event: T
+export type NetworkEvent<T extends NetworkEventTypes> = {
+  type: T
   target: Network
-} & (T extends LoaderEventTypes ? LoaderEvent<T> : unknown)
+  /** The loader the event relates to (absent for pause/resume) */
+  loader?: Loader
+}
 
 export type NetworkEventHandler<T extends NetworkEventTypes> = (
   event: NetworkEvent<T>,
 ) => void
+
+/** Strict event map for the Network (see Emitter) */
+export type NetworkEventMap = {
+  [K in NetworkEventTypes]: NetworkEvent<K>
+}
 
 // List of loader events
 const loaderEvent: LoaderEventTypes[] = [
@@ -65,7 +76,7 @@ export type NetworkProps = {
  * network.add(new Loader("https://example.com/image.jpg"));
  * ```
  */
-export class Network extends Logger {
+export class Network extends Logger<NetworkEventMap> {
   readonly inFlight = new Map<string, Loader>()
   readonly queue = new Map<string, Loader>()
   /** Browser default */
@@ -181,11 +192,11 @@ export class Network extends Logger {
       case 'error':
         loader.off(type, this.#onLoaderEvent)
         this.inFlight.delete(loader.url)
-        this.emit(type, loader) // this goes into some kind of infinite loop on error
+        this.emit(type, { loader })
         this.#update()
         break
       default:
-        this.emit(type, loader)
+        this.emit(type, { loader })
     }
   }
 
@@ -198,47 +209,29 @@ export class Network extends Logger {
   }
 
   #onError = (event: NetworkEvent<'error'>) => {
-    this.log.error([event.status, event.statusText])
+    this.log.error([
+      'Loader error',
+      event.loader?.url,
+      event.loader?.xhr.status,
+      event.loader?.xhr.statusText,
+    ])
   }
 
   //-----------------------------   EVENT EMITTER   ----------------------------
 
   /**
-   * Overrides the `on` method to add event listeners to the memory object.
-   * @param event - The event to listen for.
-   * @param listener - The listener function to be called when the event is emitted.
-   * @returns The memory object itself.
+   * Emits an event, injecting `type` and `target`.
+   * `on`/`off` are inherited fully-typed from the strict Emitter base.
    */
-  on<T extends NetworkEventTypes>(
+  emit<T extends NetworkEventTypes>(
     type: T,
-    handler: NetworkEventHandler<T>,
-  ): this {
-    return super.on(type, handler)
-  }
-
-  /**
-   * Removes an event listener for the specified event type.
-   * @param type - The type of the event.
-   * @param handler - The event handler function.
-   * @returns The current instance of Network.
-   */
-  off<T extends NetworkEventTypes>(
-    type: T,
-    handler: NetworkEventHandler<T>,
-  ): this {
-    return super.off(type, handler)
-  }
-
-  /**
-   * Emits an event of the specified type.
-   * @param type - The type of the event.
-   * @param loader - The loader object.
-   * @returns True if the event was emitted successfully, false otherwise.
-   */
-  emit<T extends NetworkEventTypes>(type: T, loader?: Loader): boolean {
-    return super.emit(type, {
+    data?: Omit<NetworkEvent<T>, 'target' | 'type'>,
+  ): boolean {
+    // loader is always present (possibly undefined) so every event has a
+    // consistent payload shape
+    return this.dispatch(type, {
+      loader: data?.loader,
       type,
-      loader,
       target: this,
     })
   }
