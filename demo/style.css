@@ -56,7 +56,7 @@ body {
 }
 
 #title {
-  width: 11rem;
+  width: 9rem;
   height: 1.5rem;
   line-height: 1.5rem;
   font-size: 1.1rem;
@@ -81,20 +81,20 @@ body {
 }
 
 .b-mode {
-  width: 16rem;
+  width: 12rem;
   color: #ca9b3d;
 }
 
 .b-wide {
-  width: 15rem;
+  width: 13rem;
 }
 
 .b-small {
-  width: 6rem;
+  width: 5rem;
 }
 
 .b-tiny {
-  width: 4.5rem;
+  width: 4rem;
 }
 
 .b-orange {
@@ -129,7 +129,12 @@ body {
 }
 
 #rails {
-  /* translated vertically by main.ts for rail navigation */
+  /* positioned so it is ALWAYS the offsetParent of its rails — a transform
+     would otherwise flip the offsetTop basis mid-session (scroll math) */
+  position: relative;
+  /* translated vertically by main.ts for rail navigation; the transition
+     exercises STB animation performance while images load */
+  transition: transform 220ms ease-out;
 }
 
 .rail {
@@ -174,6 +179,7 @@ body {
   display: flex;
   flex-direction: row;
   /* translated horizontally by main.ts for card navigation */
+  transition: transform 220ms ease-out;
 }
 
 .card {

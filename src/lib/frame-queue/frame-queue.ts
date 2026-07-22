@@ -188,6 +188,14 @@ export class FrameQueue extends Logger<FrameQueueEventMap> {
     this.#schedule()
   }
 
+  /**
+   * Kicks the queue if pending work exists — used after external state that
+   * gates requests changes (e.g. a paused bucket resumes).
+   */
+  wake() {
+    this.#schedule()
+  }
+
   /** Clears all pending requests without rendering them. */
   clear() {
     this.#queue.length = 0
@@ -249,16 +257,24 @@ export class FrameQueue extends Logger<FrameQueueEventMap> {
     const start = nowMs()
     let spentBytes = 0
     let processed = 0
+    let index = 0
 
-    while (this.#queue.length > 0) {
-      const request = this.#queue[0]
+    while (index < this.#queue.length) {
+      const request = this.#queue[index]
+
+      // paused (bucket-level) requests are skipped, never block the queue
+      if (request.paused) {
+        index++
+        continue
+      }
+
       const cost = this.#getCost(request)
 
       // always process at least one request per frame to guarantee progress
       if (processed > 0 && spentBytes + cost > byteBudget) break
       if (processed > 0 && nowMs() - start > msBudget) break
 
-      this.#queue.shift()
+      this.#queue.splice(index, 1)
       this.#queued.delete(request)
       spentBytes += cost
       processed++
@@ -271,7 +287,11 @@ export class FrameQueue extends Logger<FrameQueueEventMap> {
       `pending: ${this.#queue.length}`,
     ])
     this.emit('processed', { processed, pending: this.#queue.length })
-    this.#schedule()
+
+    // reschedule only while unpaused work remains; a bucket resume() wakes us
+    if (this.#queue.some(request => !request.paused)) {
+      this.#schedule()
+    }
   }
 
   //------------------------   EVENT EMITTER METHODS   -------------------------

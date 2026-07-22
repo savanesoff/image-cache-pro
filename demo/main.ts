@@ -75,7 +75,6 @@ const rem = (px: number) => `${px / 16}rem`
 const CARD_W = 160
 const CARD_H = 90.4
 const CARD_GAP = 8
-const RAIL_H = 33.6 + CARD_H + 9.6 // header + cards + rail margins/padding
 
 //---------------------------------------------------------------------------
 // Input-yield gate: warming pauses while a key is held (and briefly after)
@@ -379,18 +378,25 @@ function applyFocus() {
   const target = Math.min(focusCard * (CARD_W + CARD_GAP), maxOffset)
   railUI.cardsRow.style.transform = `translate(${rem(-target)}, 0)`
 
-  // vertical: keep the focused rail in view
+  // vertical: keep the focused rail in view — measured offsets, not
+  // constants (rails can be added on the go; margins must not drift).
+  // padTop: #rails sits below the viewport's padding; safety: absorbs
+  // sub-rem layout drift on embedded browsers.
+  const railEl = railUIs[focusRail].root
   const viewH = railsViewport.clientHeight
-  const railTop = focusRail * RAIL_H * (REM / 16)
-  const railBottom = railTop + RAIL_H * (REM / 16)
+  const padTop = railsRoot.offsetTop - railsViewport.offsetTop
+  const safety = REM * 0.5
+  // #rails is position:relative → offsetTop is rails-local by definition
+  const railTop = railEl.offsetTop
+  const railBottom = railTop + railEl.offsetHeight
   const currentY = railsScrollY
 
   let nextY = currentY
 
   if (railTop + currentY < 0) {
     nextY = -railTop
-  } else if (railBottom + currentY > viewH) {
-    nextY = viewH - railBottom
+  } else if (railBottom + padTop + safety + currentY > viewH) {
+    nextY = viewH - railBottom - padTop - safety
   }
 
   if (nextY !== railsScrollY) {

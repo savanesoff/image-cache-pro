@@ -10,6 +10,10 @@ Production-hardening pass (Pass 2): versatility, resilience, packaging.
   `setRamBudget()` / `setVideoBudget()` (backed by `Memory.setSize()`)
   evict immediately on shrink and emit overflow only when nothing can be
   freed.
+- **Per-bucket control**: `bucket.pause()`/`resume()` gates warming for one
+  bucket without blocking others (skipped in the frame queue, woken on
+  resume), and an optional per-bucket GPU cap (`videoBudget` +
+  `setVideoBudget()`) self-evicts the bucket's oldest unlocked warms.
 - **Live priorities**: `RenderRequest.setPriority()` and `Bucket.setPriority()`
   re-sort pending work in the frame queue on the fly — focused rails jump the
   queue; virtual lists churn requests through one long-lived bucket.

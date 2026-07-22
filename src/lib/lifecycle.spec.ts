@@ -239,6 +239,102 @@ describe('OOM: video memory pressure', () => {
   })
 })
 
+describe('per-bucket pause/resume', () => {
+  it('pauses one bucket without blocking others, resumes where it left off', () => {
+    const controller = createController()
+    const railA = new Bucket({ controller, name: 'a' })
+    const railB = new Bucket({ controller, name: 'b' })
+
+    const requestsA = Array.from({ length: 3 }, (_, i) =>
+      createRequest(railA, i),
+    )
+    const requestsB = Array.from({ length: 3 }, (_, i) =>
+      createRequest(railB, 100 + i),
+    )
+
+    railA.pause()
+    settle(controller)
+
+    // B rendered fully; A untouched but not blocking
+    expect(requestsB.every(request => request.rendered)).toBe(true)
+    expect(requestsA.every(request => !request.rendered)).toBe(true)
+    expect(controller.frameQueue.size).toBe(3)
+
+    railA.resume()
+    drainFrames()
+    expect(requestsA.every(request => request.rendered)).toBe(true)
+    expect(controller.frameQueue.size).toBe(0)
+  })
+
+  it('emits pause/resume events', () => {
+    const controller = createController()
+    const bucket = new Bucket({ controller, name: 'rail' })
+    const pauseSpy = vi.fn()
+    const resumeSpy = vi.fn()
+    bucket.on('pause', pauseSpy)
+    bucket.on('resume', resumeSpy)
+    bucket.pause()
+    bucket.pause() // idempotent
+    bucket.resume()
+    expect(pauseSpy).toHaveBeenCalledTimes(1)
+    expect(resumeSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('per-bucket video budget', () => {
+  it('caps the bucket by evicting its own oldest warms, leaving others alone', () => {
+    const controller = createController()
+    const capped = new Bucket({
+      controller,
+      name: 'background-page',
+      videoBudget: 2 * CARD_BYTES, // units: BYTE
+    })
+    const free = new Bucket({ controller, name: 'foreground' })
+
+    const cappedRequests = Array.from({ length: 4 }, (_, i) =>
+      createRequest(capped, i),
+    )
+    const freeRequests = Array.from({ length: 4 }, (_, i) =>
+      createRequest(free, 100 + i),
+    )
+    settle(controller)
+
+    // capped bucket holds only its newest two warms
+    expect(capped.getVideoBytes().used).toBe(2 * CARD_BYTES)
+    expect(cappedRequests[0].cleared).toBe(true)
+    expect(cappedRequests[1].cleared).toBe(true)
+    expect(cappedRequests[3].rendered).toBe(true)
+    // the uncapped bucket is untouched
+    expect(freeRequests.every(request => !request.cleared)).toBe(true)
+    expect(free.getVideoBytes().used).toBe(4 * CARD_BYTES)
+  })
+
+  it('shrinks at runtime and emits video-overflow when everything is locked', () => {
+    const controller = createController()
+    const bucket = new Bucket({ controller, name: 'rail' })
+    const overflowSpy = vi.fn()
+    bucket.on('video-overflow', overflowSpy)
+
+    const requests = Array.from({ length: 3 }, (_, i) =>
+      createRequest(bucket, i),
+    )
+    settle(controller)
+    expect(bucket.getVideoBytes().used).toBe(3 * CARD_BYTES)
+
+    // runtime shrink with an evictable request → self-evicts, no overflow
+    bucket.setVideoBudget(2 * CARD_BYTES)
+    expect(bucket.getVideoBytes().used).toBe(2 * CARD_BYTES)
+    expect(overflowSpy).not.toHaveBeenCalled()
+
+    // pin the rest, shrink below → overflow reported
+    requests.forEach(request => (request.visible = true))
+    bucket.setVideoBudget(1 * CARD_BYTES)
+    expect(overflowSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ bytes: CARD_BYTES }),
+    )
+  })
+})
+
 describe('runtime budget changes (setRamBudget / setVideoBudget)', () => {
   it('shrinking the video budget evicts unlocked warms immediately', () => {
     const controller = createController({ video: 4 * CARD_BYTES })

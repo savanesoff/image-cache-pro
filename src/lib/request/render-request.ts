@@ -128,6 +128,11 @@ export class RenderRequest extends Logger<RenderRequestEventMap> {
     return this.#priority
   }
 
+  /** True while this request's bucket is paused — the frame queue skips it */
+  get paused(): boolean {
+    return this.bucket.paused
+  }
+
   /**
    * Changes the scheduling priority on the fly (e.g. a virtual list slot
    * scrolled into or out of the focus area). Re-sorts the frame queue when

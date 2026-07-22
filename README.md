@@ -210,15 +210,28 @@ Methods: `getImage(props)`, `pause()`, `resume()`, `clear()`,
 `image-added`, `image-removed`, `render-request-added`,
 `render-request-removed`, `update`, `clear`.
 
-### `new Bucket({ controller, name?, lock?, priority? })`
+### `new Bucket({ controller, name?, lock?, priority?, videoBudget? })`
 
 Groups requests for one UI region. `lock: true` exempts every request from
 eviction. `setPriority(n)` re-prioritizes all of its requests live.
 
+Buckets also gate and budget their own work:
+
+- `pause()` / `resume()` — pause warming for THIS bucket only (others keep
+  rendering; its queued requests are skipped, never blocking). Loading
+  continues — only the GPU work is deferred.
+- `videoBudget` (+ `setVideoBudget(n)`) — an optional per-bucket GPU cap in
+  controller units: over the cap, the bucket evicts its own oldest unlocked
+  warms (the global video budget still applies on top). Emits
+  `video-overflow` when the cap cannot be honored. There is deliberately no
+  per-bucket RAM cap — images are shared across buckets by URL, so the
+  global RAM budget owns that.
+
 Aggregates: `loaded`, `loading`, `rendered`, `loadProgress`,
 `getRamBytes()`, `getVideoBytes()` (+ `…Units()` variants).
 Events: `progress`, `loadend`, `rendered`, `render-progress`,
-`request-rendered`, `error`, `update`, `clear`.
+`request-rendered`, `error`, `update`, `clear`, `pause`, `resume`,
+`video-overflow`.
 
 ### `new RenderRequest({ bucket, url, size, priority? })`
 

@@ -24,10 +24,13 @@ export type BucketEventTypes =
   | 'rendered'
   | 'clear'
   | 'loading'
+  | 'pause'
+  | 'resume'
   | 'request-rendered'
   | 'request-loadend'
   | 'render-progress'
   | 'update'
+  | 'video-overflow'
 
 type ProgressEvent = {
   /** The progress of the loading operation */
@@ -105,7 +108,8 @@ export type BucketEvent<T extends BucketEventTypes> = {
   (T extends 'request-rendered' ? RequestRenderedEvent : unknown) &
   (T extends 'request-loadend' ? RequestLoadEndEvent : unknown) &
   (T extends 'loading' ? { request: RenderRequest } : unknown) &
-  (T extends 'update' ? { requests: number; images: number } : unknown)
+  (T extends 'update' ? { requests: number; images: number } : unknown) &
+  (T extends 'video-overflow' ? { bytes: number } : unknown)
 
 export type BucketEventHandler<T extends BucketEventTypes> = (
   event: BucketEvent<T>,
@@ -127,6 +131,14 @@ export interface BucketProps {
    * override it individually.
    */
   priority?: number
+  /**
+   * Optional GPU-memory cap for THIS bucket, in the controller's units.
+   * When the bucket's rendered warms exceed it, its own oldest unlocked
+   * requests are evicted (the global video budget still applies on top).
+   * There is deliberately no per-bucket RAM cap: images are shared across
+   * buckets by URL, so per-bucket RAM would be ill-defined.
+   */
+  videoBudget?: number
   /** The controller instance */
   controller: Controller
 }
@@ -149,8 +161,17 @@ export class Bucket extends Logger<BucketEventMap> {
   locked: boolean
   /** Scheduling priority inherited by this bucket's render requests */
   priority: number
+  #paused = false
+  /** Per-bucket GPU cap in bytes (null = uncapped) */
+  #videoBudgetBytes: number | null = null
 
-  constructor({ name, lock = false, priority = 0, controller }: BucketProps) {
+  constructor({
+    name,
+    lock = false,
+    priority = 0,
+    videoBudget,
+    controller,
+  }: BucketProps) {
     super({
       name: name || (Bucket.bucketNumber++).toString(),
       logLevel: 'error',
@@ -158,6 +179,66 @@ export class Bucket extends Logger<BucketEventMap> {
     this.controller = controller
     this.locked = lock
     this.priority = priority
+
+    if (videoBudget !== undefined) {
+      this.setVideoBudget(videoBudget)
+    }
+  }
+
+  /** True while pause()d — the frame queue skips this bucket's requests */
+  get paused(): boolean {
+    return this.#paused
+  }
+
+  /**
+   * Pauses warming for THIS bucket only (other buckets keep rendering).
+   * Loading continues — decode-ahead is safe off-screen; only the GPU work
+   * is deferred.
+   */
+  pause() {
+    if (this.#paused) return
+    this.#paused = true
+    this.emit('pause')
+  }
+
+  /** Resumes warming for this bucket (wakes the frame queue). */
+  resume() {
+    if (!this.#paused) return
+    this.#paused = false
+    this.emit('resume')
+    this.controller.frameQueue.wake()
+  }
+
+  /**
+   * Sets/changes this bucket's GPU-memory cap at runtime (controller units;
+   * null removes the cap). Over-cap warms are evicted immediately.
+   */
+  setVideoBudget(size: number | null) {
+    this.#videoBudgetBytes =
+      size === null ? null : size * UNITS[this.controller.units]
+    this.#enforceVideoBudget()
+  }
+
+  /**
+   * Evicts this bucket's own oldest unlocked warms while over its cap.
+   * Emits 'video-overflow' when the cap cannot be honored (all locked).
+   */
+  #enforceVideoBudget() {
+    const budget = this.#videoBudgetBytes
+    if (budget === null) return
+    if (this.getVideoBytes().used <= budget) return
+
+    for (const request of this.requests) {
+      if (!request.rendered || request.isLocked()) continue
+      request.clear()
+      if (this.getVideoBytes().used <= budget) return
+    }
+
+    const used = this.getVideoBytes().used
+
+    if (used > budget) {
+      this.emit('video-overflow', { bytes: used - budget })
+    }
   }
 
   registerRequest(request: RenderRequest) {
@@ -223,6 +304,7 @@ export class Bucket extends Logger<BucketEventMap> {
     }
 
     this.emit('request-rendered', { request: event.target })
+    this.#enforceVideoBudget()
     // current render progress
     const progress = renderedRequests / this.requests.size
     this.emit('render-progress', { progress })
