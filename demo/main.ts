@@ -544,7 +544,7 @@ setInterval(() => {
     let renderedCount = 0
 
     for (const request of ui.requests) {
-      renderedCount += request.rendered ? 1 : 0
+      renderedCount += request.rendered && !request.cleared ? 1 : 0
     }
 
     const ramUnits = ui.bucket.getRamUnits()
