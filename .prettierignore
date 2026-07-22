@@ -1,6 +1,7 @@
 node_modules
 dist
 coverage
+logs
 pnpm-lock.yaml
 CHANGELOG.md
 demo-assets

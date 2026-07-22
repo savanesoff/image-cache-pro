@@ -25,3 +25,6 @@ dist
 # Local machine/box config
 .env
 .env.*
+
+# mcp-zids on-box session outputs (screenshots, logs)
+logs/
