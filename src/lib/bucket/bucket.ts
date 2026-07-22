@@ -226,15 +226,17 @@ export class Bucket extends Logger<BucketEventMap> {
   #enforceVideoBudget() {
     const budget = this.#videoBudgetBytes
     if (budget === null) return
-    if (this.getVideoBytes().used <= budget) return
+    // track `used` locally — rescanning getVideoBytes() per eviction would
+    // make this O(n²)
+    let used = this.getVideoBytes().used
+    if (used <= budget) return
 
     for (const request of this.requests) {
+      if (used <= budget) break
       if (!request.rendered || request.isLocked()) continue
+      used -= request.bytesVideo
       request.clear()
-      if (this.getVideoBytes().used <= budget) return
     }
-
-    const used = this.getVideoBytes().used
 
     if (used > budget) {
       this.emit('video-overflow', { bytes: used - budget })

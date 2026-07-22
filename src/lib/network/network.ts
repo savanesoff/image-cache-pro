@@ -227,8 +227,10 @@ export class Network extends Logger<NetworkEventMap> {
     type: T,
     data?: Omit<NetworkEvent<T>, 'target' | 'type'>,
   ): boolean {
+    // loader is always present (possibly undefined) so every event has a
+    // consistent payload shape
     return this.dispatch(type, {
-      ...data,
+      loader: data?.loader,
       type,
       target: this,
     })
