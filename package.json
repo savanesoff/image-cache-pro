@@ -72,7 +72,6 @@
     "test": "vitest --run",
     "test:watch": "vitest",
     "coverage": "vitest --run --coverage",
-    "prepack": "pnpm run build",
     "clean:package": "rm -rf ./dist",
     "build:package": "pnpm run clean:package && vite build",
     "release": "pnpm run build:package && pnpm run test && pnpm changeset publish",
