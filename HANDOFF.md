@@ -229,6 +229,17 @@ full test suite. `tspc`/`ts-patch` replaced by `vite-plugin-dts`.
 - Full spec suite repaired/rewritten — 286 tests, all green; `pnpm test` runs
   everything (was: network/ only).
 
-**Pass 2 — remaining:** loader retry/backoff + xhr timeout, README rewrite,
-on-box verification plan (§7 probes — B1 vs B2 decision), benchmarks,
+**Pass 2 — done (2026-07-22, same day):** loader timeout + retry backoff,
+README rewrite (public-facing), live priorities (`setPriority` on
+request/bucket + frame-queue `requeue`), refcounted bucket images, JPEG
+decoder bounds-checking, `.cjs` packaging (publint-verified; one cosmetic
+warning remains: types-for-`require` would need a `.d.cts` tree), renderer
+moved to `@lib/renderer`, full spec coverage (339 tests) incl.
+virtual-scroll lifecycle + OOM/recovery integration suites. A demo app
+(`demo/`, GH Pages via CI) was built Cobalt-first, verified live on a real
+box via mcp-zids (see README "Embedded browsers" for the Cobalt shims), with
+a Playwright e2e suite.
+
+**Still open:** on-box §7 probes 1–3 (cross-node texture reuse → B1 vs B2
+default decision; stampede-vs-staggered CPU numbers via `stb_monitor_start`),
 `hwRank` calibration probe (optional).
