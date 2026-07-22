@@ -16,12 +16,13 @@ export default defineConfig({
     target: 'chrome88',
     sourcemap: true,
     rollupOptions: {
+      // sourcemaps come from build.sourcemap — per-output sourcemap is
+      // unsupported by rolldown-vite (warns)
       output: [
         {
           format: 'es',
           entryFileNames: '[name].js',
           dir: 'dist/esm',
-          sourcemap: true,
         },
         {
           // .cjs: the package is type:module — plain .js here would be
@@ -29,7 +30,6 @@ export default defineConfig({
           format: 'cjs',
           entryFileNames: '[name].cjs',
           dir: 'dist/cjs',
-          sourcemap: true,
         },
       ],
     },
