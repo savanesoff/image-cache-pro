@@ -108,7 +108,8 @@ export const renderer: Renderer = ({ target, done }) => {
   // hold across two frames: frame 1 commits the div, frame 2 paints/uploads
   nextFrame(() => {
     nextFrame(() => {
-      div.remove()
+      // parentNode.removeChild — Element.remove() is absent on Cobalt
+      div.parentNode?.removeChild(div)
       done()
     })
   })

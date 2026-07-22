@@ -18,7 +18,7 @@ import {
   type LoaderProps,
 } from '@lib/loader'
 import { type RenderRequest, type RenderRequestEvent } from '@lib/request'
-import { type ImageType, type Size } from '@utils'
+import { type ImageType, microtask, type Size } from '@utils'
 
 /** Event types for the Img class */
 export type ImgEventTypes =
@@ -363,8 +363,7 @@ export class Img extends Loader<ImgEventMap> {
    */
   #assignBlob(data: { type: ImageType; size: Size }) {
     if (this.gpuDataFull) {
-      // queueMicrotask (polyfilled ~5ms on Cobalt) — NEVER setTimeout(0) (~41ms)
-      queueMicrotask(() => this.#onBlobAssigned(data))
+      microtask(() => this.#onBlobAssigned(data))
     } else if (this.blob) {
       this.element.onload = () => this.#onBlobAssigned(data)
       this.element.onerror = this.#onBlobError

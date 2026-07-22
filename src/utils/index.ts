@@ -1,6 +1,7 @@
 export * from './units'
 export * from './time'
 export * from './size'
+export * from './microtask'
 export * from './image-type'
 // NOTE: './image-decoder' is intentionally NOT re-exported here.
 // The header-decoder suite is loaded lazily (dynamic import) only when a

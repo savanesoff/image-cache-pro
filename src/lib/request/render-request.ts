@@ -7,7 +7,7 @@ import { type Bucket } from '@lib/bucket'
 import { type FrameQueue } from '@lib/frame-queue'
 import { type Img, type ImgEvent, type ImgProps } from '@lib/image'
 import { Logger } from '@lib/logger'
-import { type Size } from '@utils'
+import { microtask, type Size } from '@utils'
 import { renderer as defaultRenderer } from './renderer'
 
 export type RenderRequestProps = ImgProps & {
@@ -101,7 +101,7 @@ export class RenderRequest extends Logger<RenderRequestEventMap> {
       this.bytesVideo = this.image.getBytesVideo(this.size)
       this.rendered = true
       // microtask so subscribers attached right after construction still hear it
-      queueMicrotask(this.#onRendered)
+      microtask(this.#onRendered)
     } else {
       this.emit('progress')
       this.request()

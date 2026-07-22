@@ -19,10 +19,40 @@
 import { Bucket, Controller, RenderRequest } from '../src'
 import type { Size } from '../src'
 
-const params = new URLSearchParams(location.search)
+// boot heartbeat: proves the bundle executed (visible before anything else)
+const modeBadge = document.getElementById('mode')
+if (modeBadge) modeBadge.textContent = 'booting…'
+
+// hand-rolled query parser — URLSearchParams is not in Cobalt's Web API subset
+const query: Record<string, string> = {}
+location.search
+  .replace(/^\?/, '')
+  .split('&')
+  .forEach(pair => {
+    const eq = pair.indexOf('=')
+    if (eq > 0) {
+      query[decodeURIComponent(pair.slice(0, eq))] = decodeURIComponent(
+        pair.slice(eq + 1),
+      )
+    }
+  })
+const params = {
+  get: (key: string): string | null => (key in query ? query[key] : null),
+}
 const num = (key: string, fallback: number): number => {
   const raw = Number(params.get(key))
   return Number.isFinite(raw) && raw > 0 ? raw : fallback
+}
+
+const setSearch = (key: string, value: string) => {
+  query[key] = value
+  const parts: string[] = []
+
+  for (const k in query) {
+    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(query[k])}`)
+  }
+
+  location.search = parts.join('&')
 }
 
 const MODE_STAMPEDE = params.get('mode') === 'stampede'
@@ -354,8 +384,7 @@ function onKeyDown(event: KeyboardEvent) {
       focusRail = Math.min(RAILS - 1, focusRail + 1)
       break
     case KEY.s: {
-      params.set('mode', MODE_STAMPEDE ? 'scheduled' : 'stampede')
-      location.search = params.toString()
+      setSearch('mode', MODE_STAMPEDE ? 'scheduled' : 'stampede')
       return
     }
 

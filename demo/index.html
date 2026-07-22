@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>image-cache-pro — demo</title>
+    <script>
+      // Cobalt: NodeList/HTMLCollection lack Symbol.iterator (SystemJS
+      // iterates querySelectorAll results). Must run before any bundle.
+      ;(function () {
+        if (typeof Symbol === 'undefined' || !Symbol.iterator) return
+        var iter = Array.prototype[Symbol.iterator]
+        if (window.NodeList && !NodeList.prototype[Symbol.iterator]) {
+          NodeList.prototype[Symbol.iterator] = iter
+        }
+        if (
+          window.HTMLCollection &&
+          !HTMLCollection.prototype[Symbol.iterator]
+        ) {
+          HTMLCollection.prototype[Symbol.iterator] = iter
+        }
+      })()
+    </script>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <!--
@@ -14,6 +31,30 @@
     - no :nth-child/:first-child/:not(), no calc()/fit-content/var()
   -->
   <body>
+    <!-- on-screen error bar: the only reliable "console" on an STB -->
+    <div id="err"></div>
+    <script>
+      window.__bootErrors = []
+      window.__showErr = function (text) {
+        window.__bootErrors.push(text)
+        var el = document.getElementById('err')
+        if (el) {
+          el.style.display = 'block'
+          el.textContent = window.__bootErrors.join(' | ')
+        }
+      }
+      window.onerror = function (msg, src, line, col) {
+        window.__showErr(msg + ' @ ' + src + ':' + line + ':' + col)
+        return false
+      }
+      window.onunhandledrejection = function (event) {
+        var reason = event && event.reason
+        window.__showErr(
+          'rejection: ' +
+            (reason && (reason.stack || reason.message || reason)),
+        )
+      }
+    </script>
     <div id="app">
       <div id="topbar">
         <div id="title">image-cache-pro</div>
@@ -34,5 +75,32 @@
       </div>
     </div>
     <script type="module" src="./main.ts"></script>
+    <!-- STB boot diagnostics: if the app hasn't booted after 6s, report why -->
+    <script>
+      setTimeout(function () {
+        if (window.__demo) return
+        var entry = document.getElementById('vite-legacy-entry')
+        window.__showErr(
+          'no boot after 6s. System=' +
+            typeof window.System +
+            ' legacyEntry=' +
+            (entry ? entry.getAttribute('data-src') : 'none'),
+        )
+
+        if (window.System && window.System.import && entry) {
+          window.System.import(entry.getAttribute('data-src')).then(
+            function () {
+              window.__showErr('manual System.import resolved')
+            },
+            function (error) {
+              window.__showErr(
+                'manual System.import FAILED: ' +
+                  (error && (error.message || error)),
+              )
+            },
+          )
+        }
+      }, 6000)
+    </script>
   </body>
 </html>

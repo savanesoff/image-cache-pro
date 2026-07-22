@@ -1,4 +1,5 @@
 import path from 'node:path'
+import legacy from '@vitejs/plugin-legacy'
 import { defineConfig } from 'vite'
 
 /**
@@ -19,6 +20,18 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
   },
+  plugins: [
+    // Cobalt does not execute <script type="module"> — ship a classic
+    // (nomodule/SystemJS) bundle transpiled for Chrome 88 alongside the
+    // modern one. Desktop browsers keep the modern path.
+    legacy({
+      targets: ['chrome 88'],
+      // no core-js: Cobalt's JS engine is Chrome-88-class (the syntax
+      // target), and core-js's URL polyfill hard-crashes on Cobalt's Web
+      // API subset (bare URLSearchParams reference). SystemJS still ships.
+      polyfills: false,
+    }),
+  ],
   server: {
     host: true,
   },
