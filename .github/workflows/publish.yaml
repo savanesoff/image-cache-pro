@@ -35,6 +35,15 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify npm auth (fail fast on dead token)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if ! npm whoami; then
+            echo "::error title=npm auth failed::NPM_TOKEN is missing/expired — mint a granular automation token with read/write on image-cache-pro and update the repo secret."
+            exit 1
+          fi
+
       - name: Version packages (consume changesets)
         run: pnpm exec changeset version
 
@@ -47,15 +56,6 @@ jobs:
             git push origin main
           else
             echo "No pending changesets — nothing to version."
-          fi
-
-      - name: Verify npm auth (fail fast on dead token)
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if ! npm whoami; then
-            echo "::error title=npm auth failed::NPM_TOKEN is missing/expired — mint a granular automation token with read/write on image-cache-pro and update the repo secret."
-            exit 1
           fi
 
       - name: Build, test and publish
