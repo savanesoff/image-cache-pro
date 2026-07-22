@@ -33,3 +33,12 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      - name: Build package (+ publish hygiene)
+        run: pnpm run build && pnpm exec publint
+
+      - name: Install Playwright chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        run: pnpm run test:e2e
